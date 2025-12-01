@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+mysql-connector-python
+pinecone-client
+google-generativeai
+pydantic
+python-multipart
