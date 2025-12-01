@@ -8,7 +8,6 @@ import os
 
 app = FastAPI()
 
-# --- CORS Setup (อนุญาตให้เว็บเรียกใช้งานได้) ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -17,16 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Configuration (ดึงจาก Environment Variables) ---
-# เพื่อความปลอดภัย เราจะไม่ใส่ Key ในโค้ดตรงๆ แต่จะไปตั้งค่าใน Render/Cloud Run แทน
-PINECONE_API_KEY = os.getenv("pcsk_4quqFC_5caa8Nve71zuGHp4KXYtUCkKiTrMuVswzvb5mAa8TRvHSqiyQfs8SSzHFLZAX8q")
-GEMINI_API_KEY = os.getenv("AIzaSyB5_6NUVcxB-NwyKosHVkty69JjgvlwXqU")
+# --- ส่วนสำคัญ: ดึง Key จาก Environment Variable ---
+# ห้ามใส่รหัสตรงนี้เด็ดขาด! ให้ระบบไปดึงมาจาก Render เอง
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# ดึงค่า MySQL Connection
-DB_HOST = os.getenv("DB_HOST", "118.27.146.16")
-DB_USER = os.getenv("DB_USER", "zzjpszw1_nursing_db")
-DB_PASS = os.getenv("DB_PASS", "NattachaiOat@25341799")
-DB_NAME = os.getenv("DB_NAME", "zzjpszw1_nursing")
+DB_HOST = os.getenv("DB_HOST")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_NAME = os.getenv("DB_NAME")
 
 MYSQL_CONFIG = {
     'user': DB_USER,
@@ -43,8 +41,7 @@ pc = None
 index = None
 if PINECONE_API_KEY:
     pc = Pinecone(api_key=PINECONE_API_KEY)
-    # เชื่อมต่อ Index ชื่อ 'nursing-kb' (ต้องสร้างใน Pinecone ก่อน)
-    index = pc.Index("nursing-kb")
+    index = pc.Index("nursing-kb") # ชื่อ Index
 
 # --- Helper Functions ---
 def get_embedding(text):
@@ -61,10 +58,11 @@ def get_embedding(text):
         return []
 
 def query_mysql(keyword):
+    # เพิ่ม check เพื่อกัน error หากลืมใส่ค่า DB Config
+    if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     try:
         conn = mysql.connector.connect(**MYSQL_CONFIG)
         cursor = conn.cursor(dictionary=True)
-        # ตัวอย่าง Query ค้นหาตารางอบรม
         sql = "SELECT course_name, date, location, cneu_points FROM training_schedule WHERE course_name LIKE %s"
         cursor.execute(sql, (f"%{keyword}%",))
         results = cursor.fetchall()
@@ -77,7 +75,6 @@ def query_mysql(keyword):
 def query_pinecone(vector):
     if not index or not vector: return ""
     try:
-        # ค้นหาเอกสารที่เกี่ยวข้อง
         results = index.query(vector=vector, top_k=3, include_metadata=True, namespace="documents")
         contexts = [m['metadata'].get('text', '') for m in results['matches'] if m['score'] > 0.70]
         return "\n".join(contexts)
@@ -85,53 +82,36 @@ def query_pinecone(vector):
         print(f"Pinecone Error: {e}")
         return ""
 
-# --- API Endpoints ---
-
 class ChatRequest(BaseModel):
     message: str
 
 @app.get("/")
 def read_root():
-    return {"status": "RJ Nurse Backend is running!"}
+    return {"status": "Secure Backend Running"}
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     user_query = request.message
     
-    # 1. Security Filter: กรองคำถามต้องห้าม
-    restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin", "ตารางเวรของ", "ข้อมูลส่วนตัว"]
+    restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin"]
     if any(w in user_query for w in restricted):
-        return {"reply": "⛔ ขออภัยครับ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลหรือความลับทางราชการได้ครับ"}
+        return {"reply": "⛔ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลได้ครับ"}
 
-    # 2. Retrieval Process
     query_vector = get_embedding(user_query)
-    
-    # ดึงข้อมูลจาก Pinecone (เอกสาร)
     pinecone_context = query_pinecone(query_vector)
     
-    # ดึงข้อมูลจาก MySQL (ถ้าถามเรื่องอบรม/ตาราง)
     mysql_context = ""
-    if any(k in user_query for k in ["อบรม", "ตาราง", "วัน", "หลักสูตร"]):
+    if any(k in user_query for k in ["อบรม", "ตาราง", "วัน"]):
         mysql_context = query_mysql(user_query)
     
-    # 3. Generate Answer with Gemini
-    full_context = f"ข้อมูลเอกสารวิชาการ: {pinecone_context}\nข้อมูลตารางอบรม: {mysql_context}"
-    
-    prompt = f"""
-    คุณคือ Bot RJ Nurse ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้เท่านั้น: 
-    {full_context}
-    
-    คำถาม: {user_query}
-    
-    ข้อควรระวัง:
-    - ถ้าไม่พบข้อมูล ให้ตอบว่า "ไม่พบข้อมูลในระบบฐานข้อมูลภารกิจด้านการพยาบาลครับ"
-    - ตอบอย่างมืออาชีพ สุภาพ
-    """
+    full_context = f"เอกสาร: {pinecone_context}\nข้อมูลตาราง: {mysql_context}"
+    prompt = f"ตอบคำถามจากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return {"reply": response.text}
     except Exception as e:
-        print(f"Gemini Error: {e}")
-        return {"reply": "ขออภัย ระบบขัดข้องชั่วคราวครับ (AI Error)"}
+        return {"reply": "ระบบขัดข้องชั่วคราว"}
+
+
