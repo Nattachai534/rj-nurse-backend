@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, Dict, Any
 import mysql.connector
 from pinecone import Pinecone
 import google.generativeai as genai
@@ -68,7 +69,7 @@ def get_embedding(text):
 
 # --- Smart Search Logic ---
 def query_mysql(user_query):
-    if not all([DB_HOST, DB_USER, DB_NAME]): return ""
+    if not all([DB_HOST, DB_USER, DB_NAME]): return "Error: Database config missing"
     results_text = []
     conn = None
     try:
@@ -93,13 +94,17 @@ def query_mysql(user_query):
             if rows:
                 results_text.append(f"--- 📅 ตารางอบรม ({len(rows)} รายการ) ---")
                 for t in rows:
-                    contact = f"ติดต่อ: {t['responsible_unit']} ({t['unit_phone']}) คุณ{t['contact_person']} {t['contact_phone']}"
+                    contact = f"ติดต่อ: {t['responsible_unit'] or '-'} ({t['unit_phone'] or '-'}) คุณ{t['contact_person'] or '-'} {t['contact_phone'] or '-'}"
                     links = f""
                     if t['link_register']: links += f"[สมัคร: {t['link_register']}] "
                     if t['link_zoom']: links += f"[Zoom: {t['link_zoom']}]"
-                    desc = t['description'][:200] + "..." if t['description'] and len(t['description']) > 200 else t['description']
-                    results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) @{t['location']}\n  รายละเอียด: {desc}\n  สถานะ: {t['process_status']} | {contact} {links}")
-        except Exception: pass
+                    
+                    # Handle NULL description safely
+                    raw_desc = t['description'] or ""
+                    desc = raw_desc[:200] + "..." if len(raw_desc) > 200 else raw_desc
+                    
+                    results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) @{t['location'] or 'ไม่ระบุ'}\n  รายละเอียด: {desc}\n  สถานะ: {t['process_status']} | {contact} {links}")
+        except Exception as e: print(f"Training Error: {e}")
 
         # 2. ตาราง "การประชุม"
         try:
@@ -116,9 +121,12 @@ def query_mysql(user_query):
                     links = f""
                     if m['link_register']: links += f"[ลงทะเบียน: {m['link_register']}] "
                     if m['link_zoom']: links += f"[Zoom: {m['link_zoom']}]"
-                    agenda = m['agenda'][:200] + "..." if m['agenda'] and len(m['agenda']) > 200 else m['agenda']
-                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}-{m['end_time']}) @{m['room']}\n  วาระ: {agenda}\n  สถานะ: {m['process_status']} {links}")
-        except Exception: pass
+                    
+                    raw_agenda = m['agenda'] or ""
+                    agenda = raw_agenda[:200] + "..." if len(raw_agenda) > 200 else raw_agenda
+                    
+                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}-{m['end_time']}) @{m['room'] or 'ไม่ระบุ'}\n  วาระ: {agenda}\n  สถานะ: {m['process_status']} {links}")
+        except Exception as e: print(f"Meeting Error: {e}")
 
         # 3. ตาราง "โครงการ"
         try:
@@ -135,9 +143,12 @@ def query_mysql(user_query):
                     links = f""
                     if p['link_register']: links += f"[ข้อมูล/สมัคร: {p['link_register']}] "
                     if p['link_zoom']: links += f"[Zoom: {p['link_zoom']}]"
-                    obj = p['objective'][:200] + "..." if p['objective'] and len(p['objective']) > 200 else p['objective']
-                    results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} โทร {p['unit_phone']}\n  วัตถุประสงค์: {obj}\n  สถานะ: {p['process_status']} {links}")
-        except Exception: pass
+                    
+                    raw_obj = p['objective'] or ""
+                    obj = raw_obj[:200] + "..." if len(raw_obj) > 200 else raw_obj
+                    
+                    results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit'] or '-'} โทร {p['unit_phone'] or '-'}\n  วัตถุประสงค์: {obj}\n  สถานะ: {p['process_status']} {links}")
+        except Exception as e: print(f"Project Error: {e}")
 
         # 4. ตาราง "หน่วยงาน"
         try:
@@ -147,11 +158,13 @@ def query_mysql(user_query):
                 if rows:
                     results_text.append(f"\n--- 🏥 หน่วยงาน/เบอร์ติดต่อ ---")
                     for u in rows:
-                        results_text.append(f"- {u['unit_name']} : {u['floor']} โทร {u['phone_number']} ({u['description']})")
+                        results_text.append(f"- {u['unit_name']} : {u['floor'] or '-'} โทร {u['phone_number'] or '-'} ({u['description'] or ''})")
         except Exception: pass
 
         return "\n".join(results_text) if results_text else ""
-    except Exception: return ""
+    except Exception as e:
+        print(f"DB Error: {e}")
+        return "" # Return empty string on connection error to let AI handle it or use pinecone
     finally:
         if conn and conn.is_connected(): conn.close()
 
@@ -170,8 +183,14 @@ def generate_bot_response(user_query):
     mysql_data = query_mysql(user_query)
     pinecone_data = query_pinecone(vector)
     
+    # ถ้าไม่มีข้อมูลจากทั้ง 2 แหล่งเลย ให้แจ้งเตือน System Info (ช่วย Debug)
+    if not mysql_data and not pinecone_data:
+        system_msg = "\n(System Note: ไม่พบข้อมูลใน Database หรือ Pinecone ตรวจสอบการเชื่อมต่อ)"
+    else:
+        system_msg = ""
+
     context = f"เอกสาร:\n{pinecone_data}\n\nฐานข้อมูล (MySQL):\n{mysql_data}"
-    prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025)"
+    prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025){system_msg}"
     
     models = ['models/gemini-2.0-flash', 'models/gemini-2.5-flash', 'models/gemini-flash-latest']
     for m in models:
