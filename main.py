@@ -68,7 +68,7 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
 def get_embedding(text):
     if not GEMINI_API_KEY: return []
     try:
-        # ใช้ Model embedding ตัวใหม่
+        # ใช้ชื่อ models/ นำหน้าเพื่อความชัวร์
         result = genai.embed_content(
             model="models/text-embedding-004",
             content=text,
@@ -127,7 +127,7 @@ def query_pinecone(vector):
         print(f"Pinecone Error: {e}")
         return ""
 
-# --- Core Logic with Debug Info ---
+# --- Core Logic ---
 def generate_bot_response(user_query):
     restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin", "ตารางเวรของ", "ข้อมูลส่วนตัว"]
     if any(w in user_query for w in restricted):
@@ -141,11 +141,14 @@ def generate_bot_response(user_query):
     
     prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
-    # 🌟 เพิ่มรุ่น Model ให้ครบทุกแบบ และเก็บ Error ล่าสุดมาโชว์ 🌟
+    # 🌟 อัปเดตรายชื่อโมเดลให้มี 'models/' นำหน้า (Format ใหม่ของ Google) 🌟
     models_to_try = [
-        'gemini-1.5-flash', 
-        'gemini-1.5-flash-latest', 
-        'gemini-1.5-flash-001', 
+        'gemini-1.5-flash',
+        'models/gemini-1.5-flash',
+        'gemini-1.5-flash-latest',
+        'models/gemini-1.5-pro',
+        'gemini-1.5-pro',
+        'models/gemini-pro',
         'gemini-pro'
     ]
     
@@ -157,12 +160,11 @@ def generate_bot_response(user_query):
             response = model.generate_content(prompt)
             return response.text
         except Exception as e:
-            print(f"Model {model_name} failed: {e}")
-            last_error_msg = str(e) # เก็บ Error ไว้ดู
+            # print(f"Model {model_name} failed: {e}") 
+            last_error_msg = str(e)
             continue 
             
-    # ถ้าพังทุกรุ่น ให้ส่ง Error จริงกลับไปที่หน้าแชทเลย (จะได้รู้ว่าผิดตรงไหน)
-    return f"⚠️ ระบบขัดข้อง (Debug Info): {last_error_msg}"
+    return f"⚠️ ระบบขัดข้อง (Debug Info): {last_error_msg}. ลองเข้า /debug/models เพื่อเช็คชื่อโมเดล"
 
 # --- API Endpoints ---
 class ChatRequest(BaseModel):
@@ -171,6 +173,19 @@ class ChatRequest(BaseModel):
 @app.get("/")
 def read_root():
     return {"status": "RJ Nurse Backend is running!"}
+
+# 🌟 เมนูพิเศษ: เช็คว่ามีโมเดลอะไรให้ใช้บ้าง 🌟
+@app.get("/debug/models")
+def list_available_models():
+    if not GEMINI_API_KEY: return {"error": "No API Key set"}
+    try:
+        models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                models.append(m.name)
+        return {"available_models": models}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
