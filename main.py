@@ -24,17 +24,17 @@ app.add_middleware(
 )
 
 # --- Configuration ---
-PINECONE_API_KEY = os.getenv("pcsk_4quqFC_5caa8Nve71zuGHp4KXYtUCkKiTrMuVswzvb5mAa8TRvHSqiyQfs8SSzHFLZAX8q")
-GEMINI_API_KEY = os.getenv("AIzaSyCsidzGcPObWT2glTvqlyXxurR23Kqpt3c")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # LINE Configuration
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
 # --- Database Config (รองรับ TiDB / MySQL) ---
-DB_HOST = os.getenv("DB_HOST", "gateway01.ap-southeast-1.prod.aws.tidbcloud.com")
-DB_USER = os.getenv("DB_USER", "2BNFoNMpzJXCPeL.root")
-DB_PASS = os.getenv("DB_PASS", "tArYxchNYkULd50O")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "")
 DB_NAME = os.getenv("DB_NAME", "test") # TiDB ฟรีมักใช้ชื่อ "test"
 DB_PORT = os.getenv("DB_PORT", "4000") # Port มาตรฐาน TiDB
 
