@@ -80,12 +80,8 @@ def get_embedding(text):
         print(f"Embedding Error: {e}")
         return []
 
-# --- [UPDATED] Smart Search Logic ---
+# --- [UPDATED] SQL Logic ที่ดึงวันที่และปีมาด้วย ---
 def query_mysql(user_query):
-    """
-    ระบบค้นหาอัจฉริยะ: ตรวจจับ Keyword เพื่อดึงข้อมูลที่เกี่ยวข้องมาทั้งหมด
-    แทนการค้นหาแบบระบุชื่อตรงๆ
-    """
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
     conn = None
@@ -94,33 +90,32 @@ def query_mysql(user_query):
         cursor = conn.cursor(dictionary=True)
         
         q = user_query.lower()
-        # ตรวจจับ Keyword ว่าผู้ใช้ถามเรื่องอะไร
+        # Keyword Detection
         fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68'])
-        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ'])
-        fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
+        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ', '2568', '68'])
+        fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม', '2568', '68'])
 
-        # 1. ค้นหาตาราง "อบรม"
+        # 1. ตาราง "อบรม" (เพิ่ม date_start, date_end)
         try:
             if fetch_training:
-                # ถ้าถามกว้างๆ ให้ดึงรายการล่าสุดมา 15 รายการเลย
-                sql = "SELECT course_name, date_start, location, cneu_points, status FROM training_courses ORDER BY date_start ASC LIMIT 15"
+                sql = "SELECT course_name, date_start, date_end, location, cneu_points, status FROM training_courses ORDER BY date_start ASC LIMIT 20"
                 cursor.execute(sql)
             else:
-                # ถ้าไม่ถามเจาะจง ลองค้นหาแบบ LIKE เผื่อฟลุ๊ค
-                sql = "SELECT course_name, date_start, location, cneu_points, status FROM training_courses WHERE course_name LIKE %s LIMIT 5"
+                sql = "SELECT course_name, date_start, date_end, location, cneu_points, status FROM training_courses WHERE course_name LIKE %s LIMIT 5"
                 cursor.execute(sql, (f"%{user_query}%",))
             
             rows = cursor.fetchall()
             if rows:
-                results_text.append(f"--- 📅 ตารางอบรมที่พบ ({len(rows)} รายการ) ---")
+                results_text.append(f"--- 📅 ตารางอบรม ({len(rows)} รายการ) ---")
                 for t in rows:
-                    results_text.append(f"- {t['course_name']} (วันที่: {t['date_start']}) @{t['location']} [CNEU: {t['cneu_points']}]")
+                    # แปลงวันที่ให้ AI เข้าใจง่าย
+                    results_text.append(f"- {t['course_name']} (วันที่: {t['date_start']} ถึง {t['date_end']}) สถานที่: {t['location']} [CNEU: {t['cneu_points']}]")
         except Exception as e: print(f"Training Error: {e}")
 
-        # 2. ค้นหาตาราง "การประชุม"
+        # 2. ตาราง "การประชุม" (เพิ่ม meeting_date)
         try:
             if fetch_meeting:
-                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule ORDER BY meeting_date ASC LIMIT 10"
+                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule ORDER BY meeting_date ASC LIMIT 15"
                 cursor.execute(sql)
             else:
                 sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule WHERE title LIKE %s LIMIT 5"
@@ -130,23 +125,24 @@ def query_mysql(user_query):
             if rows:
                 results_text.append(f"\n--- 📝 การประชุม ---")
                 for m in rows:
-                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']}")
+                    results_text.append(f"- {m['title']} (วันที่: {m['meeting_date']} เวลา: {m['start_time']}) ห้อง: {m['room']}")
         except Exception as e: print(f"Meeting Error: {e}")
 
-        # 3. ค้นหาตาราง "โครงการ"
+        # 3. ตาราง "โครงการ" (เพิ่ม fiscal_year !!)
         try:
             if fetch_project:
-                sql = "SELECT project_name, status, responsible_unit FROM nursing_projects ORDER BY id DESC LIMIT 15"
+                # ดึงปีงบประมาณ (fiscal_year) มาด้วย AI จะได้รู้ปี
+                sql = "SELECT project_name, status, responsible_unit, fiscal_year FROM nursing_projects ORDER BY id DESC LIMIT 20"
                 cursor.execute(sql)
             else:
-                sql = "SELECT project_name, status, responsible_unit FROM nursing_projects WHERE project_name LIKE %s LIMIT 5"
+                sql = "SELECT project_name, status, responsible_unit, fiscal_year FROM nursing_projects WHERE project_name LIKE %s LIMIT 5"
                 cursor.execute(sql, (f"%{user_query}%",))
             
             rows = cursor.fetchall()
             if rows:
                 results_text.append(f"\n--- 🚀 โครงการ ---")
                 for p in rows:
-                    results_text.append(f"- {p['project_name']} ({p['responsible_unit']}) [{p['status']}]")
+                    results_text.append(f"- {p['project_name']} (ปีงบประมาณ: {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} [สถานะ: {p['status']}]")
         except Exception as e: print(f"Project Error: {e}")
 
         if not results_text: return ""
@@ -171,19 +167,27 @@ def generate_bot_response(user_query):
 
     vector = get_embedding(user_query)
     
-    # ดึงข้อมูลด้วย Logic ใหม่
     mysql_data = query_mysql(user_query)
     pinecone_data = query_pinecone(vector)
     
     context = f"เอกสาร:\n{pinecone_data}\n\nฐานข้อมูล (MySQL):\n{mysql_data}"
     
-    # Model Fallback
+    # Prompt ให้ AI ฉลาดขึ้นเรื่องปี
+    prompt = f"""
+    คุณคือ Bot RJ Nurse ตอบคำถามโดยใช้ข้อมูลนี้: {context}
+    
+    คำถาม: {user_query}
+    
+    ข้อควรระวัง:
+    - ข้อมูลในวงเล็บ (ปีงบประมาณ: 2568) คือข้อมูลของปี 68
+    - ตอบเป็นภาษาไทย สุภาพ
+    - หากข้อมูลมีจำนวนมาก ให้สรุปเป็นรายการ
+    """
+    
     models = ['models/gemini-2.0-flash', 'models/gemini-1.5-flash', 'gemini-1.5-flash']
     for m in models:
         try:
             model = genai.GenerativeModel(m)
-            # เพิ่ม Prompt ให้ AI ฉลาดเรื่องปี พ.ศ./ค.ศ.
-            prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(หมายเหตุ: ปี 2568 = 2025)"
             return model.generate_content(prompt).text
         except: continue
     return "ขออภัย ระบบ AI ขัดข้องชั่วคราว"
