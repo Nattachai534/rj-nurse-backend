@@ -5,3 +5,4 @@ pinecone
 google-generativeai
 pydantic
 python-multipart
+line-bot-sdk
