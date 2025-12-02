@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
 import mysql.connector
 from pinecone import Pinecone
 import google.generativeai as genai
@@ -47,15 +46,9 @@ MYSQL_CONFIG = {
     'ssl_disabled': False
 }
 
-# --- Initialization ---
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-
-pc = None
-index = None
-if PINECONE_API_KEY:
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-    index = pc.Index("nursing-kb")
+if GEMINI_API_KEY: genai.configure(api_key=GEMINI_API_KEY)
+pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
+index = pc.Index("nursing-kb") if pc else None
 
 line_bot_api = None
 handler = None
@@ -63,24 +56,17 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
     line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
     handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# --- Data Models ---
-class ChatRequest(BaseModel):
-    message: str
+class ChatRequest(BaseModel): message: str
 
-# --- Helper Functions ---
-def get_db_connection():
-    return mysql.connector.connect(**MYSQL_CONFIG)
+def get_db_connection(): return mysql.connector.connect(**MYSQL_CONFIG)
 
 def get_embedding(text):
     if not GEMINI_API_KEY: return []
     try:
-        result = genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")
-        return result['embedding']
-    except Exception as e:
-        print(f"Embedding Error: {e}")
-        return []
+        return genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")['embedding']
+    except: return []
 
-# --- [UPDATED] SQL Logic ที่ดึงวันที่และปีมาด้วย ---
+# --- [UPDATED] Smart Search Logic (เพิ่มค้นหาหน่วยงาน) ---
 def query_mysql(user_query):
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
@@ -88,69 +74,74 @@ def query_mysql(user_query):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
         q = user_query.lower()
+        
         # Keyword Detection
-        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68'])
-        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ', '2568', '68'])
-        fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม', '2568', '68'])
+        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร'])
+        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ'])
+        fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
+        # เพิ่ม keyword สำหรับค้นหาหน่วยงาน
+        fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก'])
 
-        # 1. ตาราง "อบรม" (เพิ่ม date_start, date_end)
+        # 1. ตาราง "อบรม"
         try:
+            sql_base = "SELECT course_name, date_start, location, link_register, process_status FROM training_courses"
             if fetch_training:
-                sql = "SELECT course_name, date_start, date_end, location, cneu_points, status FROM training_courses ORDER BY date_start ASC LIMIT 20"
-                cursor.execute(sql)
+                cursor.execute(f"{sql_base} ORDER BY date_start ASC LIMIT 15")
             else:
-                sql = "SELECT course_name, date_start, date_end, location, cneu_points, status FROM training_courses WHERE course_name LIKE %s LIMIT 5"
-                cursor.execute(sql, (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE course_name LIKE %s LIMIT 5", (f"%{user_query}%",))
             
             rows = cursor.fetchall()
             if rows:
-                results_text.append(f"--- 📅 ตารางอบรม ({len(rows)} รายการ) ---")
+                results_text.append(f"--- 📅 ตารางอบรม ---")
                 for t in rows:
-                    # แปลงวันที่ให้ AI เข้าใจง่าย
-                    results_text.append(f"- {t['course_name']} (วันที่: {t['date_start']} ถึง {t['date_end']}) สถานที่: {t['location']} [CNEU: {t['cneu_points']}]")
-        except Exception as e: print(f"Training Error: {e}")
+                    results_text.append(f"- {t['course_name']} ({t['date_start']}) @{t['location']} [{t['process_status']}]")
+        except Exception: pass
 
-        # 2. ตาราง "การประชุม" (เพิ่ม meeting_date)
+        # 2. ตาราง "การประชุม"
         try:
+            sql_base = "SELECT title, meeting_date, start_time, room, process_status FROM meeting_schedule"
             if fetch_meeting:
-                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule ORDER BY meeting_date ASC LIMIT 15"
-                cursor.execute(sql)
+                cursor.execute(f"{sql_base} ORDER BY meeting_date ASC LIMIT 10")
             else:
-                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule WHERE title LIKE %s LIMIT 5"
-                cursor.execute(sql, (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE title LIKE %s LIMIT 5", (f"%{user_query}%",))
             
             rows = cursor.fetchall()
             if rows:
                 results_text.append(f"\n--- 📝 การประชุม ---")
                 for m in rows:
-                    results_text.append(f"- {m['title']} (วันที่: {m['meeting_date']} เวลา: {m['start_time']}) ห้อง: {m['room']}")
-        except Exception as e: print(f"Meeting Error: {e}")
+                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']}")
+        except Exception: pass
 
-        # 3. ตาราง "โครงการ" (เพิ่ม fiscal_year !!)
+        # 3. ตาราง "โครงการ"
         try:
+            sql_base = "SELECT project_name, responsible_unit, process_status FROM nursing_projects"
             if fetch_project:
-                # ดึงปีงบประมาณ (fiscal_year) มาด้วย AI จะได้รู้ปี
-                sql = "SELECT project_name, status, responsible_unit, fiscal_year FROM nursing_projects ORDER BY id DESC LIMIT 20"
-                cursor.execute(sql)
+                cursor.execute(f"{sql_base} ORDER BY id DESC LIMIT 15")
             else:
-                sql = "SELECT project_name, status, responsible_unit, fiscal_year FROM nursing_projects WHERE project_name LIKE %s LIMIT 5"
-                cursor.execute(sql, (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE project_name LIKE %s LIMIT 5", (f"%{user_query}%",))
             
             rows = cursor.fetchall()
             if rows:
                 results_text.append(f"\n--- 🚀 โครงการ ---")
                 for p in rows:
-                    results_text.append(f"- {p['project_name']} (ปีงบประมาณ: {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} [สถานะ: {p['status']}]")
-        except Exception as e: print(f"Project Error: {e}")
+                    results_text.append(f"- {p['project_name']} ({p['responsible_unit']}) [{p['process_status']}]")
+        except Exception: pass
 
-        if not results_text: return ""
-        return "\n".join(results_text)
+        # 4. [เพิ่มใหม่] ตาราง "หน่วยงาน" (nursing_units)
+        try:
+            if fetch_unit:
+                # ถ้าถามหาเบอร์/ตึก ให้ค้นหาชื่อหน่วยงานเลย
+                cursor.execute("SELECT unit_name, floor, phone_number, description FROM nursing_units WHERE unit_name LIKE %s OR description LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
+                rows = cursor.fetchall()
+                if rows:
+                    results_text.append(f"\n--- 🏥 ข้อมูลหน่วยงาน/การติดต่อ ---")
+                    for u in rows:
+                        results_text.append(f"- {u['unit_name']} : {u['floor']} โทร {u['phone_number']} ({u['description']})")
+        except Exception as e: print(f"Unit Error: {e}")
 
-    except Exception as e:
-        print(f"DB Connection Error: {e}")
-        return ""
+        return "\n".join(results_text) if results_text else ""
+    except Exception: return ""
     finally:
         if conn and conn.is_connected(): conn.close()
 
@@ -166,41 +157,26 @@ def generate_bot_response(user_query):
     if any(w in user_query for w in restricted): return "⛔ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลได้ครับ"
 
     vector = get_embedding(user_query)
-    
     mysql_data = query_mysql(user_query)
     pinecone_data = query_pinecone(vector)
     
     context = f"เอกสาร:\n{pinecone_data}\n\nฐานข้อมูล (MySQL):\n{mysql_data}"
+    prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025)"
     
-    # Prompt ให้ AI ฉลาดขึ้นเรื่องปี
-    prompt = f"""
-    คุณคือ Bot RJ Nurse ตอบคำถามโดยใช้ข้อมูลนี้: {context}
-    
-    คำถาม: {user_query}
-    
-    ข้อควรระวัง:
-    - ข้อมูลในวงเล็บ (ปีงบประมาณ: 2568) คือข้อมูลของปี 68
-    - ตอบเป็นภาษาไทย สุภาพ
-    - หากข้อมูลมีจำนวนมาก ให้สรุปเป็นรายการ
-    """
-    
-    models = ['models/gemini-2.0-flash', 'models/gemini-1.5-flash', 'gemini-1.5-flash']
+    models = ['models/gemini-2.0-flash', 'models/gemini-2.5-flash', 'models/gemini-flash-latest']
     for m in models:
         try:
-            model = genai.GenerativeModel(m)
-            return model.generate_content(prompt).text
+            return genai.GenerativeModel(m).generate_content(prompt).text
         except: continue
     return "ขออภัย ระบบ AI ขัดข้องชั่วคราว"
 
-# ==========================================
-# 🌟 ADMIN API ENDPOINTS 🌟
-# ==========================================
-
+# --- Admin API ---
 @app.get("/api/admin/{table_name}")
 def admin_get_data(table_name: str, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
     
-    valid_tables = ["training_courses", "meeting_schedule", "nursing_projects"]
+    # เพิ่ม nursing_units เข้าไปในรายการที่อนุญาต
+    valid_tables = ["training_courses", "meeting_schedule", "nursing_projects", "nursing_units"]
     if table_name not in valid_tables: raise HTTPException(400, "Invalid table")
 
     try:
@@ -212,52 +188,46 @@ def admin_get_data(table_name: str, secret: str = Header(None)):
             for k, v in row.items():
                 if hasattr(v, 'strftime'): row[k] = v.strftime('%Y-%m-%d')
                 if hasattr(v, 'total_seconds'): row[k] = str(v)
+                if v is None: row[k] = "" 
         conn.close()
         return rows
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception as e: return {"error": str(e)}
 
 @app.post("/api/admin/{table_name}")
 async def admin_add_data(table_name: str, request: Request, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
-    
     data = await request.json()
+    for k, v in data.items():
+        if v == "": data[k] = None
     columns = ', '.join(data.keys())
     placeholders = ', '.join(['%s'] * len(data))
     values = list(data.values())
-
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-        cursor.execute(sql, values)
+        cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})", values)
         conn.commit()
         conn.close()
-        return {"status": "success", "message": "Data added"}
-    except Exception as e:
-        return {"error": str(e)}
+        return {"status": "success"}
+    except Exception as e: return {"error": str(e)}
 
 @app.delete("/api/admin/{table_name}/{record_id}")
 def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
-    
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(f"DELETE FROM {table_name} WHERE id = %s", (record_id,))
         conn.commit()
         conn.close()
-        return {"status": "success", "message": "Data deleted"}
-    except Exception as e:
-        return {"error": str(e)}
+        return {"status": "success"}
+    except Exception as e: return {"error": str(e)}
 
-# --- Standard Endpoints ---
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend Running"}
+def root(): return {"status": "RJ Nurse Backend V3.2 Running"}
 
 @app.post("/chat")
-def chat(r: ChatRequest): 
-    return {"reply": generate_bot_response(r.message)}
+def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
 
 @app.post("/callback")
 async def callback(request: Request):
