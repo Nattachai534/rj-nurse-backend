@@ -141,15 +141,13 @@ def generate_bot_response(user_query):
     
     prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
-    # 🌟 อัปเดตรายชื่อโมเดลให้มี 'models/' นำหน้า (Format ใหม่ของ Google) 🌟
+    # 🌟 อัปเดตรายชื่อโมเดลตามลิสต์ที่คุณส่งมา (2.0 Flash / 2.5 Flash) 🌟
     models_to_try = [
-        'gemini-1.5-flash',
-        'models/gemini-1.5-flash',
-        'gemini-1.5-flash-latest',
-        'models/gemini-1.5-pro',
-        'gemini-1.5-pro',
-        'models/gemini-pro',
-        'gemini-pro'
+        'models/gemini-2.0-flash',
+        'models/gemini-2.5-flash',
+        'models/gemini-2.0-flash-lite',
+        'models/gemini-flash-latest',
+        'models/gemini-2.0-pro-exp-02-05'
     ]
     
     last_error_msg = ""
