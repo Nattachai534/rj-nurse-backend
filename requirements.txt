@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 mysql-connector-python
-pinecone-client
+pinecone
 google-generativeai
 pydantic
 python-multipart
