@@ -63,7 +63,7 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
     line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
     handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# --- Data Models (ประกาศไว้ตรงนี้ก่อนถูกเรียกใช้) ---
+# --- Data Models ---
 class ChatRequest(BaseModel):
     message: str
 
@@ -80,33 +80,80 @@ def get_embedding(text):
         print(f"Embedding Error: {e}")
         return []
 
-# --- Smart Search Logic ---
-def query_mysql(keyword):
+# --- [UPDATED] Smart Search Logic ---
+def query_mysql(user_query):
+    """
+    ระบบค้นหาอัจฉริยะ: ตรวจจับ Keyword เพื่อดึงข้อมูลที่เกี่ยวข้องมาทั้งหมด
+    แทนการค้นหาแบบระบุชื่อตรงๆ
+    """
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        
+        q = user_query.lower()
+        # ตรวจจับ Keyword ว่าผู้ใช้ถามเรื่องอะไร
+        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68'])
+        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ'])
+        fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
 
+        # 1. ค้นหาตาราง "อบรม"
         try:
-            cursor.execute("SELECT course_name, date_start, status FROM training_courses WHERE course_name LIKE %s LIMIT 5", (f"%{keyword}%",))
-            for t in cursor.fetchall(): results_text.append(f"- อบรม: {t['course_name']} ({t['date_start']}) [{t['status']}]")
-        except: pass
+            if fetch_training:
+                # ถ้าถามกว้างๆ ให้ดึงรายการล่าสุดมา 15 รายการเลย
+                sql = "SELECT course_name, date_start, location, cneu_points, status FROM training_courses ORDER BY date_start ASC LIMIT 15"
+                cursor.execute(sql)
+            else:
+                # ถ้าไม่ถามเจาะจง ลองค้นหาแบบ LIKE เผื่อฟลุ๊ค
+                sql = "SELECT course_name, date_start, location, cneu_points, status FROM training_courses WHERE course_name LIKE %s LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
+            
+            rows = cursor.fetchall()
+            if rows:
+                results_text.append(f"--- 📅 ตารางอบรมที่พบ ({len(rows)} รายการ) ---")
+                for t in rows:
+                    results_text.append(f"- {t['course_name']} (วันที่: {t['date_start']}) @{t['location']} [CNEU: {t['cneu_points']}]")
+        except Exception as e: print(f"Training Error: {e}")
 
+        # 2. ค้นหาตาราง "การประชุม"
         try:
-            cursor.execute("SELECT title, meeting_date, room FROM meeting_schedule WHERE title LIKE %s LIMIT 5", (f"%{keyword}%",))
-            for m in cursor.fetchall(): results_text.append(f"- ประชุม: {m['title']} ({m['meeting_date']}) {m['room']}")
-        except: pass
+            if fetch_meeting:
+                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule ORDER BY meeting_date ASC LIMIT 10"
+                cursor.execute(sql)
+            else:
+                sql = "SELECT title, meeting_date, start_time, room FROM meeting_schedule WHERE title LIKE %s LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
+            
+            rows = cursor.fetchall()
+            if rows:
+                results_text.append(f"\n--- 📝 การประชุม ---")
+                for m in rows:
+                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']}")
+        except Exception as e: print(f"Meeting Error: {e}")
 
+        # 3. ค้นหาตาราง "โครงการ"
         try:
-            cursor.execute("SELECT project_name, status FROM nursing_projects WHERE project_name LIKE %s LIMIT 5", (f"%{keyword}%",))
-            for p in cursor.fetchall(): results_text.append(f"- โครงการ: {p['project_name']} [{p['status']}]")
-        except: pass
+            if fetch_project:
+                sql = "SELECT project_name, status, responsible_unit FROM nursing_projects ORDER BY id DESC LIMIT 15"
+                cursor.execute(sql)
+            else:
+                sql = "SELECT project_name, status, responsible_unit FROM nursing_projects WHERE project_name LIKE %s LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
+            
+            rows = cursor.fetchall()
+            if rows:
+                results_text.append(f"\n--- 🚀 โครงการ ---")
+                for p in rows:
+                    results_text.append(f"- {p['project_name']} ({p['responsible_unit']}) [{p['status']}]")
+        except Exception as e: print(f"Project Error: {e}")
 
+        if not results_text: return ""
         return "\n".join(results_text)
+
     except Exception as e:
-        print(f"DB Error: {e}")
+        print(f"DB Connection Error: {e}")
         return ""
     finally:
         if conn and conn.is_connected(): conn.close()
@@ -123,14 +170,21 @@ def generate_bot_response(user_query):
     if any(w in user_query for w in restricted): return "⛔ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลได้ครับ"
 
     vector = get_embedding(user_query)
-    context = f"เอกสาร:\n{query_pinecone(vector)}\nฐานข้อมูล:\n{query_mysql(user_query)}"
+    
+    # ดึงข้อมูลด้วย Logic ใหม่
+    mysql_data = query_mysql(user_query)
+    pinecone_data = query_pinecone(vector)
+    
+    context = f"เอกสาร:\n{pinecone_data}\n\nฐานข้อมูล (MySQL):\n{mysql_data}"
     
     # Model Fallback
     models = ['models/gemini-2.0-flash', 'models/gemini-1.5-flash', 'gemini-1.5-flash']
     for m in models:
         try:
             model = genai.GenerativeModel(m)
-            return model.generate_content(f"ตอบสั้นๆจากข้อมูลนี้: {context}\nคำถาม: {user_query}").text
+            # เพิ่ม Prompt ให้ AI ฉลาดเรื่องปี พ.ศ./ค.ศ.
+            prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(หมายเหตุ: ปี 2568 = 2025)"
+            return model.generate_content(prompt).text
         except: continue
     return "ขออภัย ระบบ AI ขัดข้องชั่วคราว"
 
