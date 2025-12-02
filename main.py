@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
 import mysql.connector
 from pinecone import Pinecone
 import google.generativeai as genai
@@ -67,9 +66,9 @@ def get_embedding(text):
         return genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")['embedding']
     except: return []
 
-# --- Smart Search Logic ---
+# --- [UPDATED V3.9] Smart Search Logic ---
 def query_mysql(user_query):
-    if not all([DB_HOST, DB_USER, DB_NAME]): return "Error: Database config missing"
+    if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
     conn = None
     try:
@@ -80,7 +79,7 @@ def query_mysql(user_query):
         fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร', 'ลิงก์'])
         fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ', 'ลิงก์'])
         fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
-        fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก'])
+        fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก', 'er', 'ฉุกเฉิน'])
 
         # 1. ตาราง "อบรม"
         try:
@@ -98,13 +97,9 @@ def query_mysql(user_query):
                     links = f""
                     if t['link_register']: links += f"[สมัคร: {t['link_register']}] "
                     if t['link_zoom']: links += f"[Zoom: {t['link_zoom']}]"
-                    
-                    # Handle NULL description safely
-                    raw_desc = t['description'] or ""
-                    desc = raw_desc[:200] + "..." if len(raw_desc) > 200 else raw_desc
-                    
+                    desc = t['description'][:200] + "..." if t['description'] and len(t['description']) > 200 else t['description']
                     results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) @{t['location'] or 'ไม่ระบุ'}\n  รายละเอียด: {desc}\n  สถานะ: {t['process_status']} | {contact} {links}")
-        except Exception as e: print(f"Training Error: {e}")
+        except Exception: pass
 
         # 2. ตาราง "การประชุม"
         try:
@@ -121,12 +116,9 @@ def query_mysql(user_query):
                     links = f""
                     if m['link_register']: links += f"[ลงทะเบียน: {m['link_register']}] "
                     if m['link_zoom']: links += f"[Zoom: {m['link_zoom']}]"
-                    
-                    raw_agenda = m['agenda'] or ""
-                    agenda = raw_agenda[:200] + "..." if len(raw_agenda) > 200 else raw_agenda
-                    
+                    agenda = m['agenda'][:200] + "..." if m['agenda'] and len(m['agenda']) > 200 else m['agenda']
                     results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}-{m['end_time']}) @{m['room'] or 'ไม่ระบุ'}\n  วาระ: {agenda}\n  สถานะ: {m['process_status']} {links}")
-        except Exception as e: print(f"Meeting Error: {e}")
+        except Exception: pass
 
         # 3. ตาราง "โครงการ"
         try:
@@ -143,28 +135,32 @@ def query_mysql(user_query):
                     links = f""
                     if p['link_register']: links += f"[ข้อมูล/สมัคร: {p['link_register']}] "
                     if p['link_zoom']: links += f"[Zoom: {p['link_zoom']}]"
-                    
-                    raw_obj = p['objective'] or ""
-                    obj = raw_obj[:200] + "..." if len(raw_obj) > 200 else raw_obj
-                    
+                    obj = p['objective'][:200] + "..." if p['objective'] and len(p['objective']) > 200 else p['objective']
                     results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit'] or '-'} โทร {p['unit_phone'] or '-'}\n  วัตถุประสงค์: {obj}\n  สถานะ: {p['process_status']} {links}")
-        except Exception as e: print(f"Project Error: {e}")
+        except Exception: pass
 
-        # 4. ตาราง "หน่วยงาน"
+        # 4. [UPDATED] ตาราง "หน่วยงาน" (ค้นหาแบบฉลาด)
         try:
             if fetch_unit:
+                # 4.1 ลองค้นหาแบบเจาะจงก่อน
                 cursor.execute("SELECT unit_name, floor, phone_number, description FROM nursing_units WHERE unit_name LIKE %s OR description LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
                 rows = cursor.fetchall()
+                
+                # 4.2 [FIX] ถ้าไม่เจอ ให้ดึงข้อมูลหน่วยงานทั้งหมดมาเลย (ให้ AI ไปหาเอง)
+                if not rows:
+                    cursor.execute("SELECT unit_name, floor, phone_number, description FROM nursing_units LIMIT 30")
+                    rows = cursor.fetchall()
+                
                 if rows:
-                    results_text.append(f"\n--- 🏥 หน่วยงาน/เบอร์ติดต่อ ---")
+                    results_text.append(f"\n--- 🏥 ข้อมูลหน่วยงาน/เบอร์ติดต่อ ---")
                     for u in rows:
                         results_text.append(f"- {u['unit_name']} : {u['floor'] or '-'} โทร {u['phone_number'] or '-'} ({u['description'] or ''})")
-        except Exception: pass
+        except Exception as e: print(f"Unit Error: {e}")
 
         return "\n".join(results_text) if results_text else ""
     except Exception as e:
         print(f"DB Error: {e}")
-        return "" # Return empty string on connection error to let AI handle it or use pinecone
+        return ""
     finally:
         if conn and conn.is_connected(): conn.close()
 
@@ -183,9 +179,9 @@ def generate_bot_response(user_query):
     mysql_data = query_mysql(user_query)
     pinecone_data = query_pinecone(vector)
     
-    # ถ้าไม่มีข้อมูลจากทั้ง 2 แหล่งเลย ให้แจ้งเตือน System Info (ช่วย Debug)
+    # แจ้งเตือนถ้าไม่เจอข้อมูลเลย
     if not mysql_data and not pinecone_data:
-        system_msg = "\n(System Note: ไม่พบข้อมูลใน Database หรือ Pinecone ตรวจสอบการเชื่อมต่อ)"
+        system_msg = "\n(System: ไม่พบข้อมูลใน DB ลองใช้คำค้นหาที่กว้างขึ้น หรือตรวจสอบว่าเพิ่มข้อมูลหน่วยงานหรือยัง)"
     else:
         system_msg = ""
 
@@ -237,18 +233,15 @@ async def admin_add_data(table_name: str, request: Request, secret: str = Header
         return {"status": "success"}
     except Exception as e: return {"error": str(e)}
 
-# ✅ เพิ่มฟังก์ชันแก้ไขข้อมูล (UPDATE)
 @app.put("/api/admin/{table_name}/{record_id}")
 async def admin_update_data(table_name: str, record_id: int, request: Request, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
     data = await request.json()
     for k, v in data.items():
         if v == "": data[k] = None
-        
     set_clause = ', '.join([f"{k} = %s" for k in data.keys()])
     values = list(data.values())
     values.append(record_id)
-
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -272,7 +265,7 @@ def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V3.6 Running"}
+def root(): return {"status": "RJ Nurse Backend V3.9 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
