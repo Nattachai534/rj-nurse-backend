@@ -68,7 +68,6 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
 def get_embedding(text):
     if not GEMINI_API_KEY: return []
     try:
-        # ใช้ชื่อ models/ นำหน้าเพื่อความชัวร์
         result = genai.embed_content(
             model="models/text-embedding-004",
             content=text,
@@ -79,36 +78,66 @@ def get_embedding(text):
         print(f"Embedding Error: {e}")
         return []
 
-def query_mysql(keyword):
+def query_mysql(user_query):
+    """
+    [Updated] ค้นหาข้อมูลแบบ Smart Retrieval
+    แทนที่จะค้นหาด้วย WHERE LIKE '%ประโยคยาวๆ%' ซึ่งมักจะไม่เจอ
+    เราจะดึงรายการ 'ทั้งหมด' (ล่าสุด) ออกมาให้ Gemini เป็นคนคัดกรองเอง
+    """
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
+
     results_text = []
     conn = None
     try:
         conn = mysql.connector.connect(**MYSQL_CONFIG)
         cursor = conn.cursor(dictionary=True)
+        
+        # ตรวจจับ keywords เพื่อตัดสินใจว่าจะดึงตารางไหนบ้าง
+        q = user_query.lower()
+        fetch_training = any(x in q for x in ['อบรม', 'หลักสูตร', 'เรียน', 'cneu', 'ตาราง', 'ปี', 'schedule', '2568', '68'])
+        fetch_meeting = any(x in q for x in ['ประชุม', 'นัด', 'วาระ', 'ตาราง', 'ปี', '2568', '68'])
+        fetch_project = any(x in q for x in ['โครงการ', 'project', 'กิจกรรม', 'งาน', 'ปี', '2568', '68'])
 
-        try:
-            sql_train = "SELECT course_name, date_start, location, status FROM training_courses WHERE course_name LIKE %s OR description LIKE %s LIMIT 3"
-            cursor.execute(sql_train, (f"%{keyword}%", f"%{keyword}%"))
-            for t in cursor.fetchall():
-                results_text.append(f"- อบรม: {t['course_name']} ({t['date_start']}) {t['location']}")
-        except Exception: pass
+        # 1. ตาราง "อบรม" (ดึง 20 รายการ เพื่อให้ครอบคลุมทั้งปี)
+        if fetch_training:
+            try:
+                # ดึงข้อมูลมาเลยไม่ต้อง WHERE LIKE ชื่อ
+                cursor.execute("SELECT course_name, date_start, location, cneu_points, status FROM training_courses ORDER BY date_start ASC LIMIT 20")
+                trainings = cursor.fetchall()
+                if trainings:
+                    results_text.append(f"--- 📅 ตารางการอบรม (ทั้งหมด) ---")
+                    for t in trainings:
+                        results_text.append(f"- {t['course_name']} (วันที่: {t['date_start']}) สถานที่: {t['location']} [CNEU: {t['cneu_points']}]")
+            except Exception as e:
+                print(f"Table Training Error: {e}")
 
-        try:
-            sql_meet = "SELECT title, meeting_date, room FROM meeting_schedule WHERE title LIKE %s OR agenda LIKE %s LIMIT 3"
-            cursor.execute(sql_meet, (f"%{keyword}%", f"%{keyword}%"))
-            for m in cursor.fetchall():
-                results_text.append(f"- ประชุม: {m['title']} ({m['meeting_date']}) ห้อง {m['room']}")
-        except Exception: pass
+        # 2. ตาราง "การประชุม"
+        if fetch_meeting:
+            try:
+                cursor.execute("SELECT title, meeting_date, start_time, room FROM meeting_schedule ORDER BY meeting_date ASC LIMIT 15")
+                meetings = cursor.fetchall()
+                if meetings:
+                    results_text.append(f"\n--- 📝 ตารางการประชุม ---")
+                    for m in meetings:
+                        results_text.append(f"- {m['title']} ({m['meeting_date']} เวลา {m['start_time']}) ห้อง: {m['room']}")
+            except Exception as e:
+                 print(f"Table Meeting Error: {e}")
 
-        try:
-            sql_proj = "SELECT project_name, status FROM nursing_projects WHERE project_name LIKE %s LIMIT 3"
-            cursor.execute(sql_proj, (f"%{keyword}%",))
-            for p in cursor.fetchall():
-                results_text.append(f"- โครงการ: {p['project_name']} ({p['status']})")
-        except Exception: pass
+        # 3. ตาราง "โครงการ"
+        if fetch_project:
+            try:
+                cursor.execute("SELECT project_name, responsible_unit, status FROM nursing_projects ORDER BY id DESC LIMIT 15")
+                projects = cursor.fetchall()
+                if projects:
+                    results_text.append(f"\n--- 🚀 โครงการต่างๆ ---")
+                    for p in projects:
+                        results_text.append(f"- {p['project_name']} ({p['responsible_unit']}) สถานะ: {p['status']}")
+            except Exception as e:
+                 print(f"Table Project Error: {e}")
 
-        if not results_text: return ""
+        if not results_text:
+            return ""
+            
         return "\n".join(results_text)
 
     except Exception as e:
@@ -139,9 +168,19 @@ def generate_bot_response(user_query):
     
     full_context = f"เอกสาร: {pinecone_context}\nฐานข้อมูล: {mysql_context}"
     
-    prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
+    # เพิ่มคำสั่งให้ AI เข้าใจปี พ.ศ.
+    prompt = f"""
+    คุณคือ Bot RJ Nurse ตอบคำถามโดยใช้ข้อมูลนี้: 
+    {full_context}
     
-    # 🌟 ใช้รายชื่อโมเดลจากบัญชีของคุณโดยเฉพาะ (2.5 Flash / 2.0 Flash) 🌟
+    คำถาม: {user_query}
+    
+    ข้อควรระวัง:
+    - ปี ค.ศ. 2025 ตรงกับ ปี พ.ศ. 2568 (ถ้าผู้ใช้ถามปี 68 ให้ตอบข้อมูลปี 2025)
+    - ตอบเป็นภาษาไทย สุภาพ (ใช้ค่ะ/คะ)
+    - ถ้าข้อมูลมีเยอะ ให้สรุปเป็นรายการ
+    """
+    
     models_to_try = [
         'models/gemini-2.5-flash',
         'models/gemini-2.0-flash',
@@ -156,7 +195,6 @@ def generate_bot_response(user_query):
             response = model.generate_content(prompt)
             return response.text
         except Exception as e:
-            # print(f"Model {model_name} failed: {e}") 
             last_error_msg = str(e)
             continue 
             
@@ -170,7 +208,6 @@ class ChatRequest(BaseModel):
 def read_root():
     return {"status": "RJ Nurse Backend is running!"}
 
-# 🌟 เมนูพิเศษ: เช็คว่ามีโมเดลอะไรให้ใช้บ้าง 🌟
 @app.get("/debug/models")
 def list_available_models():
     if not GEMINI_API_KEY: return {"error": "No API Key set"}
