@@ -31,12 +31,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 
-# --- Database Config (รองรับ TiDB / MySQL) ---
+# --- Database Config ---
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "")
-DB_NAME = os.getenv("DB_NAME", "test") # TiDB ฟรีมักใช้ชื่อ "test"
-DB_PORT = os.getenv("DB_PORT", "4000") # Port มาตรฐาน TiDB
+DB_NAME = os.getenv("DB_NAME", "test")
+DB_PORT = os.getenv("DB_PORT", "4000")
 
 MYSQL_CONFIG = {
     'user': DB_USER,
@@ -44,7 +44,7 @@ MYSQL_CONFIG = {
     'host': DB_HOST,
     'database': DB_NAME,
     'port': int(DB_PORT),
-    'ssl_disabled': False # TiDB บังคับเปิด SSL
+    'ssl_disabled': False
 }
 
 # --- Initialization ---
@@ -55,7 +55,7 @@ pc = None
 index = None
 if PINECONE_API_KEY:
     pc = Pinecone(api_key=PINECONE_API_KEY)
-    index = pc.Index("nursing-kb") # ชื่อ Index ใน Pinecone
+    index = pc.Index("nursing-kb")
 
 # Setup LINE Bot
 line_bot_api = None
@@ -68,6 +68,7 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
 def get_embedding(text):
     if not GEMINI_API_KEY: return []
     try:
+        # ลองใช้ Model embedding ตัวใหม่
         result = genai.embed_content(
             model="models/text-embedding-004",
             content=text,
@@ -79,81 +80,42 @@ def get_embedding(text):
         return []
 
 def query_mysql(keyword):
-    """
-    ค้นหาข้อมูลแบบรวมศูนย์ (Unified Search) จาก 3 ตารางหลักใน TiDB
-    """
-    if not all([DB_HOST, DB_USER, DB_NAME]): 
-        return ""
-
+    if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
     conn = None
-    
     try:
         conn = mysql.connector.connect(**MYSQL_CONFIG)
         cursor = conn.cursor(dictionary=True)
 
-        # 1. ค้นหาตาราง "อบรม" (training_courses)
         try:
-            sql_train = """
-                SELECT course_name, date_start, date_end, location, status 
-                FROM training_courses 
-                WHERE course_name LIKE %s OR description LIKE %s
-                LIMIT 5
-            """
+            sql_train = "SELECT course_name, date_start, location, status FROM training_courses WHERE course_name LIKE %s OR description LIKE %s LIMIT 3"
             cursor.execute(sql_train, (f"%{keyword}%", f"%{keyword}%"))
-            trainings = cursor.fetchall()
-            if trainings:
-                results_text.append(f"--- 📅 ข้อมูลการอบรมที่พบ ---")
-                for t in trainings:
-                    results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) ที่ {t['location']} [สถานะ: {t['status']}]")
-        except Exception as e:
-            print(f"Table Training Error: {e}")
+            for t in cursor.fetchall():
+                results_text.append(f"- อบรม: {t['course_name']} ({t['date_start']}) {t['location']}")
+        except Exception: pass
 
-        # 2. ค้นหาตาราง "การประชุม" (meeting_schedule)
         try:
-            sql_meet = """
-                SELECT title, meeting_date, start_time, room, meeting_type 
-                FROM meeting_schedule 
-                WHERE title LIKE %s OR agenda LIKE %s
-                LIMIT 5
-            """
+            sql_meet = "SELECT title, meeting_date, room FROM meeting_schedule WHERE title LIKE %s OR agenda LIKE %s LIMIT 3"
             cursor.execute(sql_meet, (f"%{keyword}%", f"%{keyword}%"))
-            meetings = cursor.fetchall()
-            if meetings:
-                results_text.append(f"\n--- 📝 ข้อมูลการประชุมที่พบ ---")
-                for m in meetings:
-                    results_text.append(f"- {m['title']} ({m['meeting_date']} เวลา {m['start_time']}) ห้อง {m['room']} [ประเภท: {m['meeting_type']}]")
-        except Exception as e:
-             print(f"Table Meeting Error: {e}")
+            for m in cursor.fetchall():
+                results_text.append(f"- ประชุม: {m['title']} ({m['meeting_date']}) ห้อง {m['room']}")
+        except Exception: pass
 
-        # 3. ค้นหาตาราง "โครงการ" (nursing_projects)
         try:
-            sql_proj = """
-                SELECT project_name, responsible_unit, status, fiscal_year 
-                FROM nursing_projects 
-                WHERE project_name LIKE %s
-                LIMIT 5
-            """
+            sql_proj = "SELECT project_name, status FROM nursing_projects WHERE project_name LIKE %s LIMIT 3"
             cursor.execute(sql_proj, (f"%{keyword}%",))
-            projects = cursor.fetchall()
-            if projects:
-                results_text.append(f"\n--- 🚀 ข้อมูลโครงการที่พบ ---")
-                for p in projects:
-                    results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} [สถานะ: {p['status']}]")
-        except Exception as e:
-             print(f"Table Project Error: {e}")
+            for p in cursor.fetchall():
+                results_text.append(f"- โครงการ: {p['project_name']} ({p['status']})")
+        except Exception: pass
 
-        if not results_text:
-            return ""
-            
+        if not results_text: return ""
         return "\n".join(results_text)
 
     except Exception as e:
-        print(f"Database Connection Error: {e}")
+        print(f"DB Error: {e}")
         return ""
     finally:
-        if conn and conn.is_connected():
-            conn.close()
+        if conn and conn.is_connected(): conn.close()
 
 def query_pinecone(vector):
     if not index or not vector: return ""
@@ -165,40 +127,34 @@ def query_pinecone(vector):
         print(f"Pinecone Error: {e}")
         return ""
 
-# --- Core Logic ---
+# --- Core Logic with Model Fallback ---
 def generate_bot_response(user_query):
-    # Security Filter
-    restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin", "ตารางเวรของ", "ข้อมูลส่วนตัว", "ประวัติการรักษา"]
+    restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin", "ตารางเวรของ", "ข้อมูลส่วนตัว"]
     if any(w in user_query for w in restricted):
-        return "⛔ ขออภัยครับ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลหรือความลับทางราชการได้ครับ"
+        return "⛔ ขออภัยครับ ไม่สามารถเข้าถึงข้อมูลส่วนบุคคลได้ครับ"
 
     query_vector = get_embedding(user_query)
-    
-    # ดึงข้อมูลจาก 2 แหล่ง
     pinecone_context = query_pinecone(query_vector)
     mysql_context = query_mysql(user_query)
     
-    full_context = f"ข้อมูลเอกสารวิชาการ/ระเบียบการ:\n{pinecone_context}\n\nข้อมูลจากฐานข้อมูล (อบรม/ประชุม/โครงการ):\n{mysql_context}"
+    full_context = f"เอกสาร: {pinecone_context}\nฐานข้อมูล: {mysql_context}"
     
-    prompt = f"""
-    คุณคือ Bot RJ Nurse ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้เท่านั้น: 
-    {full_context}
+    prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
-    คำถาม: {user_query}
+    # 🌟 จุดแก้ปัญหา 404: ระบบ Retry Model 🌟
+    # ลองใช้รุ่น Flash ล่าสุดก่อน -> ถ้าไม่ได้ให้ใช้ Flash 001 -> ถ้าไม่ได้ให้ใช้ Pro 1.0
+    models_to_try = ['gemini-1.5-flash-latest', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro']
     
-    ข้อควรระวัง:
-    - ถ้าข้อมูลใน Context ว่างเปล่าหรือไม่เกี่ยวข้อง ให้ตอบว่า "ขออภัยค่ะ ไม่พบข้อมูลในระบบฐานข้อมูลภารกิจด้านการพยาบาลค่ะ"
-    - ตอบให้กระชับ สุภาพ (ใช้ค่ะ/คะ) เป็นมืออาชีพ
-    - หากเป็นเรื่องวันที่ ให้ระบุวันเดือนปีให้ชัดเจน
-    """
-    
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Gemini Error: {e}")
-        return "ขออภัย ระบบขัดข้องชั่วคราวครับ"
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"Model {model_name} failed: {e}")
+            continue # ลองรุ่นถัดไป
+            
+    return "ขออภัย ระบบ AI ขัดข้องชั่วคราว (Model Not Found)"
 
 # --- API Endpoints ---
 class ChatRequest(BaseModel):
@@ -234,7 +190,4 @@ if handler:
     def handle_message(event):
         user_msg = event.message.text
         reply_text = generate_bot_response(user_msg)
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply_text)
-        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
