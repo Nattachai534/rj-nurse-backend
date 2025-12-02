@@ -66,7 +66,7 @@ def get_embedding(text):
         return genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")['embedding']
     except: return []
 
-# --- [UPDATED] Smart Search Logic (ดึงข้อมูลครบทุกฟิลด์) ---
+# --- Smart Search Logic ---
 def query_mysql(user_query):
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
@@ -81,9 +81,8 @@ def query_mysql(user_query):
         fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
         fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก'])
 
-        # 1. ตาราง "อบรม" (เพิ่ม description)
+        # 1. ตาราง "อบรม"
         try:
-            # เลือก column ให้ครบ
             sql_base = "SELECT course_name, description, date_start, date_end, location, link_register, link_zoom, responsible_unit, unit_phone, contact_person, contact_phone, process_status FROM training_courses"
             if fetch_training:
                 cursor.execute(f"{sql_base} ORDER BY date_start ASC LIMIT 15")
@@ -96,16 +95,13 @@ def query_mysql(user_query):
                 for t in rows:
                     contact = f"ติดต่อ: {t['responsible_unit']} ({t['unit_phone']}) คุณ{t['contact_person']} {t['contact_phone']}"
                     links = f""
-                    if t['link_register']: links += f"[สมัครคลิก: {t['link_register']}] "
+                    if t['link_register']: links += f"[สมัคร: {t['link_register']}] "
                     if t['link_zoom']: links += f"[Zoom: {t['link_zoom']}]"
-                    
-                    # ตัดรายละเอียดถ้ามันยาวเกินไป (เช่น 200 ตัวอักษร) เพื่อประหยัด Token
                     desc = t['description'][:200] + "..." if t['description'] and len(t['description']) > 200 else t['description']
-                    
                     results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) @{t['location']}\n  รายละเอียด: {desc}\n  สถานะ: {t['process_status']} | {contact} {links}")
-        except Exception as e: print(f"Training Error: {e}")
+        except Exception: pass
 
-        # 2. ตาราง "การประชุม" (เพิ่ม agenda)
+        # 2. ตาราง "การประชุม"
         try:
             sql_base = "SELECT title, agenda, meeting_date, start_time, end_time, room, link_register, link_zoom, responsible_unit, contact_person, process_status FROM meeting_schedule"
             if fetch_meeting:
@@ -119,14 +115,12 @@ def query_mysql(user_query):
                 for m in rows:
                     links = f""
                     if m['link_register']: links += f"[ลงทะเบียน: {m['link_register']}] "
-                    if m['link_zoom']: links += f"[เข้า Zoom: {m['link_zoom']}]"
-                    
+                    if m['link_zoom']: links += f"[Zoom: {m['link_zoom']}]"
                     agenda = m['agenda'][:200] + "..." if m['agenda'] and len(m['agenda']) > 200 else m['agenda']
-                    
                     results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}-{m['end_time']}) @{m['room']}\n  วาระ: {agenda}\n  สถานะ: {m['process_status']} {links}")
-        except Exception as e: print(f"Meeting Error: {e}")
+        except Exception: pass
 
-        # 3. ตาราง "โครงการ" (เพิ่ม objective)
+        # 3. ตาราง "โครงการ"
         try:
             sql_base = "SELECT project_name, objective, responsible_unit, unit_phone, contact_person, link_register, link_zoom, process_status, fiscal_year FROM nursing_projects"
             if fetch_project:
@@ -141,11 +135,9 @@ def query_mysql(user_query):
                     links = f""
                     if p['link_register']: links += f"[ข้อมูล/สมัคร: {p['link_register']}] "
                     if p['link_zoom']: links += f"[Zoom: {p['link_zoom']}]"
-                    
                     obj = p['objective'][:200] + "..." if p['objective'] and len(p['objective']) > 200 else p['objective']
-                    
                     results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} โทร {p['unit_phone']}\n  วัตถุประสงค์: {obj}\n  สถานะ: {p['process_status']} {links}")
-        except Exception as e: print(f"Project Error: {e}")
+        except Exception: pass
 
         # 4. ตาราง "หน่วยงาน"
         try:
@@ -192,10 +184,8 @@ def generate_bot_response(user_query):
 @app.get("/api/admin/{table_name}")
 def admin_get_data(table_name: str, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
-    
     valid_tables = ["training_courses", "meeting_schedule", "nursing_projects", "nursing_units"]
     if table_name not in valid_tables: raise HTTPException(400, "Invalid table")
-
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -228,6 +218,28 @@ async def admin_add_data(table_name: str, request: Request, secret: str = Header
         return {"status": "success"}
     except Exception as e: return {"error": str(e)}
 
+# ✅ เพิ่มฟังก์ชันแก้ไขข้อมูล (UPDATE)
+@app.put("/api/admin/{table_name}/{record_id}")
+async def admin_update_data(table_name: str, record_id: int, request: Request, secret: str = Header(None)):
+    if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
+    data = await request.json()
+    for k, v in data.items():
+        if v == "": data[k] = None
+        
+    set_clause = ', '.join([f"{k} = %s" for k in data.keys()])
+    values = list(data.values())
+    values.append(record_id)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = f"UPDATE {table_name} SET {set_clause} WHERE id = %s"
+        cursor.execute(sql, values)
+        conn.commit()
+        conn.close()
+        return {"status": "success"}
+    except Exception as e: return {"error": str(e)}
+
 @app.delete("/api/admin/{table_name}/{record_id}")
 def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
@@ -241,7 +253,7 @@ def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V3.5 Running"}
+def root(): return {"status": "RJ Nurse Backend V3.6 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
