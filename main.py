@@ -141,13 +141,11 @@ def generate_bot_response(user_query):
     
     prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
-    # 🌟 อัปเดตรายชื่อโมเดลตามลิสต์ที่คุณส่งมา (2.0 Flash / 2.5 Flash) 🌟
+    # 🌟 ใช้รายชื่อโมเดลจากบัญชีของคุณโดยเฉพาะ (2.5 Flash / 2.0 Flash) 🌟
     models_to_try = [
-        'models/gemini-2.0-flash',
         'models/gemini-2.5-flash',
-        'models/gemini-2.0-flash-lite',
-        'models/gemini-flash-latest',
-        'models/gemini-2.0-pro-exp-02-05'
+        'models/gemini-2.0-flash',
+        'models/gemini-flash-latest'
     ]
     
     last_error_msg = ""
