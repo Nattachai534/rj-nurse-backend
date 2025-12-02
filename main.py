@@ -66,7 +66,7 @@ def get_embedding(text):
         return genai.embed_content(model="models/text-embedding-004", content=text, task_type="retrieval_query")['embedding']
     except: return []
 
-# --- [UPDATED] Smart Search Logic (เพิ่มค้นหาหน่วยงาน) ---
+# --- [UPDATED] Smart Search Logic (ดึงข้อมูลครบทุกฟิลด์) ---
 def query_mysql(user_query):
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
@@ -76,69 +76,87 @@ def query_mysql(user_query):
         cursor = conn.cursor(dictionary=True)
         q = user_query.lower()
         
-        # Keyword Detection
-        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร'])
-        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ'])
+        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร', 'ลิงก์'])
+        fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ', 'ลิงก์'])
         fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
-        # เพิ่ม keyword สำหรับค้นหาหน่วยงาน
         fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก'])
 
-        # 1. ตาราง "อบรม"
+        # 1. ตาราง "อบรม" (เพิ่ม description)
         try:
-            sql_base = "SELECT course_name, date_start, location, link_register, process_status FROM training_courses"
+            # เลือก column ให้ครบ
+            sql_base = "SELECT course_name, description, date_start, date_end, location, link_register, link_zoom, responsible_unit, unit_phone, contact_person, contact_phone, process_status FROM training_courses"
             if fetch_training:
                 cursor.execute(f"{sql_base} ORDER BY date_start ASC LIMIT 15")
             else:
-                cursor.execute(f"{sql_base} WHERE course_name LIKE %s LIMIT 5", (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE course_name LIKE %s OR description LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
             
             rows = cursor.fetchall()
             if rows:
-                results_text.append(f"--- 📅 ตารางอบรม ---")
+                results_text.append(f"--- 📅 ตารางอบรม ({len(rows)} รายการ) ---")
                 for t in rows:
-                    results_text.append(f"- {t['course_name']} ({t['date_start']}) @{t['location']} [{t['process_status']}]")
-        except Exception: pass
+                    contact = f"ติดต่อ: {t['responsible_unit']} ({t['unit_phone']}) คุณ{t['contact_person']} {t['contact_phone']}"
+                    links = f""
+                    if t['link_register']: links += f"[สมัครคลิก: {t['link_register']}] "
+                    if t['link_zoom']: links += f"[Zoom: {t['link_zoom']}]"
+                    
+                    # ตัดรายละเอียดถ้ามันยาวเกินไป (เช่น 200 ตัวอักษร) เพื่อประหยัด Token
+                    desc = t['description'][:200] + "..." if t['description'] and len(t['description']) > 200 else t['description']
+                    
+                    results_text.append(f"- {t['course_name']} ({t['date_start']} ถึง {t['date_end']}) @{t['location']}\n  รายละเอียด: {desc}\n  สถานะ: {t['process_status']} | {contact} {links}")
+        except Exception as e: print(f"Training Error: {e}")
 
-        # 2. ตาราง "การประชุม"
+        # 2. ตาราง "การประชุม" (เพิ่ม agenda)
         try:
-            sql_base = "SELECT title, meeting_date, start_time, room, process_status FROM meeting_schedule"
+            sql_base = "SELECT title, agenda, meeting_date, start_time, end_time, room, link_register, link_zoom, responsible_unit, contact_person, process_status FROM meeting_schedule"
             if fetch_meeting:
                 cursor.execute(f"{sql_base} ORDER BY meeting_date ASC LIMIT 10")
             else:
-                cursor.execute(f"{sql_base} WHERE title LIKE %s LIMIT 5", (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE title LIKE %s OR agenda LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
             
             rows = cursor.fetchall()
             if rows:
                 results_text.append(f"\n--- 📝 การประชุม ---")
                 for m in rows:
-                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']}")
-        except Exception: pass
+                    links = f""
+                    if m['link_register']: links += f"[ลงทะเบียน: {m['link_register']}] "
+                    if m['link_zoom']: links += f"[เข้า Zoom: {m['link_zoom']}]"
+                    
+                    agenda = m['agenda'][:200] + "..." if m['agenda'] and len(m['agenda']) > 200 else m['agenda']
+                    
+                    results_text.append(f"- {m['title']} ({m['meeting_date']} {m['start_time']}-{m['end_time']}) @{m['room']}\n  วาระ: {agenda}\n  สถานะ: {m['process_status']} {links}")
+        except Exception as e: print(f"Meeting Error: {e}")
 
-        # 3. ตาราง "โครงการ"
+        # 3. ตาราง "โครงการ" (เพิ่ม objective)
         try:
-            sql_base = "SELECT project_name, responsible_unit, process_status FROM nursing_projects"
+            sql_base = "SELECT project_name, objective, responsible_unit, unit_phone, contact_person, link_register, link_zoom, process_status, fiscal_year FROM nursing_projects"
             if fetch_project:
                 cursor.execute(f"{sql_base} ORDER BY id DESC LIMIT 15")
             else:
-                cursor.execute(f"{sql_base} WHERE project_name LIKE %s LIMIT 5", (f"%{user_query}%",))
+                cursor.execute(f"{sql_base} WHERE project_name LIKE %s OR objective LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
             
             rows = cursor.fetchall()
             if rows:
                 results_text.append(f"\n--- 🚀 โครงการ ---")
                 for p in rows:
-                    results_text.append(f"- {p['project_name']} ({p['responsible_unit']}) [{p['process_status']}]")
-        except Exception: pass
+                    links = f""
+                    if p['link_register']: links += f"[ข้อมูล/สมัคร: {p['link_register']}] "
+                    if p['link_zoom']: links += f"[Zoom: {p['link_zoom']}]"
+                    
+                    obj = p['objective'][:200] + "..." if p['objective'] and len(p['objective']) > 200 else p['objective']
+                    
+                    results_text.append(f"- {p['project_name']} (ปี {p['fiscal_year']}) หน่วยงาน: {p['responsible_unit']} โทร {p['unit_phone']}\n  วัตถุประสงค์: {obj}\n  สถานะ: {p['process_status']} {links}")
+        except Exception as e: print(f"Project Error: {e}")
 
-        # 4. [เพิ่มใหม่] ตาราง "หน่วยงาน" (nursing_units)
+        # 4. ตาราง "หน่วยงาน"
         try:
             if fetch_unit:
-                # ถ้าถามหาเบอร์/ตึก ให้ค้นหาชื่อหน่วยงานเลย
                 cursor.execute("SELECT unit_name, floor, phone_number, description FROM nursing_units WHERE unit_name LIKE %s OR description LIKE %s LIMIT 5", (f"%{user_query}%", f"%{user_query}%"))
                 rows = cursor.fetchall()
                 if rows:
-                    results_text.append(f"\n--- 🏥 ข้อมูลหน่วยงาน/การติดต่อ ---")
+                    results_text.append(f"\n--- 🏥 หน่วยงาน/เบอร์ติดต่อ ---")
                     for u in rows:
                         results_text.append(f"- {u['unit_name']} : {u['floor']} โทร {u['phone_number']} ({u['description']})")
-        except Exception as e: print(f"Unit Error: {e}")
+        except Exception: pass
 
         return "\n".join(results_text) if results_text else ""
     except Exception: return ""
@@ -175,7 +193,6 @@ def generate_bot_response(user_query):
 def admin_get_data(table_name: str, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
     
-    # เพิ่ม nursing_units เข้าไปในรายการที่อนุญาต
     valid_tables = ["training_courses", "meeting_schedule", "nursing_projects", "nursing_units"]
     if table_name not in valid_tables: raise HTTPException(400, "Invalid table")
 
@@ -224,7 +241,7 @@ def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V3.2 Running"}
+def root(): return {"status": "RJ Nurse Backend V3.5 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
