@@ -15,7 +15,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = FastAPI()
 
-# --- CORS Setup (สำคัญมากสำหรับหน้า Admin) ---
+# --- CORS Setup ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -29,8 +29,6 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
-
-# Admin Secret (รหัสผ่านง่ายๆ กันคนนอกมากดเล่น)
 ADMIN_SECRET = os.getenv("ADMIN_SECRET", "admin1234") 
 
 # Database Config
@@ -59,12 +57,15 @@ if PINECONE_API_KEY:
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index("nursing-kb")
 
-# Setup LINE Bot
 line_bot_api = None
 handler = None
 if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
     line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
     handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+# --- Data Models (ประกาศไว้ตรงนี้ก่อนถูกเรียกใช้) ---
+class ChatRequest(BaseModel):
+    message: str
 
 # --- Helper Functions ---
 def get_db_connection():
@@ -134,10 +135,9 @@ def generate_bot_response(user_query):
     return "ขออภัย ระบบ AI ขัดข้องชั่วคราว"
 
 # ==========================================
-# 🌟 ADMIN API ENDPOINTS (เพิ่มใหม่) 🌟
+# 🌟 ADMIN API ENDPOINTS 🌟
 # ==========================================
 
-# 1. ดูข้อมูลทั้งหมด (Read)
 @app.get("/api/admin/{table_name}")
 def admin_get_data(table_name: str, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
@@ -148,19 +148,17 @@ def admin_get_data(table_name: str, secret: str = Header(None)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # แปลงวันที่ให้เป็น String เพื่อป้องกัน JSON Error
         cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT 50")
         rows = cursor.fetchall()
         for row in rows:
             for k, v in row.items():
                 if hasattr(v, 'strftime'): row[k] = v.strftime('%Y-%m-%d')
-                if hasattr(v, 'total_seconds'): row[k] = str(v) # For TIME type
+                if hasattr(v, 'total_seconds'): row[k] = str(v)
         conn.close()
         return rows
     except Exception as e:
         return {"error": str(e)}
 
-# 2. เพิ่มข้อมูล (Create)
 @app.post("/api/admin/{table_name}")
 async def admin_add_data(table_name: str, request: Request, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
@@ -181,7 +179,6 @@ async def admin_add_data(table_name: str, request: Request, secret: str = Header
     except Exception as e:
         return {"error": str(e)}
 
-# 3. ลบข้อมูล (Delete)
 @app.delete("/api/admin/{table_name}/{record_id}")
 def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
@@ -201,9 +198,8 @@ def admin_delete_data(table_name: str, record_id: int, secret: str = Header(None
 def root(): return {"status": "RJ Nurse Backend Running"}
 
 @app.post("/chat")
-def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
-
-class ChatRequest(BaseModel): message: str
+def chat(r: ChatRequest): 
+    return {"reply": generate_bot_response(r.message)}
 
 @app.post("/callback")
 async def callback(request: Request):
