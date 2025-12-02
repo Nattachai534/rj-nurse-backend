@@ -14,12 +14,7 @@
         textarea::-webkit-scrollbar-track { background: #f1f1f1; }
         textarea::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         textarea::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        /* Loading Overlay */
-        .loading-overlay {
-            position: absolute; inset: 0; background: rgba(255,255,255,0.7);
-            display: flex; justify-content: center; align-items: center; z-index: 10;
-        }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 20; backdrop-filter: blur(2px); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -27,10 +22,12 @@
     <nav class="bg-gradient-to-r from-rose-600 to-pink-600 text-white p-4 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="bg-white text-rose-600 p-1 rounded-full"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg></span>
-                Admin V3.8 (เสถียร)
+                <span class="bg-white text-rose-600 p-1 rounded-full shadow-md">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                </span>
+                Admin V3.9 <span class="text-xs bg-rose-800 px-2 py-0.5 rounded-full text-rose-100">Anti-Cache</span>
             </h1>
-            <div class="flex gap-2 items-center bg-white/10 p-1.5 rounded-lg">
+            <div class="flex gap-2 items-center bg-white/10 p-1.5 rounded-lg border border-white/20">
                 <input type="password" id="adminSecret" placeholder="รหัส Admin..." class="px-3 py-1.5 text-gray-800 rounded text-sm w-32 border-none focus:ring-2 focus:ring-white/50 shadow-inner bg-white">
                 <button type="button" id="btnReload" onclick="fetchData()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm transition font-bold shadow-md active:transform active:scale-95 flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
@@ -43,18 +40,18 @@
     <div class="container mx-auto p-4 sm:p-6">
         <!-- Tabs -->
         <div class="flex gap-2 mb-6 border-b-2 border-gray-200 pb-1 overflow-x-auto select-none">
-            <button type="button" onclick="switchTab('training_courses')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap" id="tab-training">🎓 การอบรม</button>
-            <button type="button" onclick="switchTab('meeting_schedule')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap" id="tab-meeting">📝 การประชุม</button>
-            <button type="button" onclick="switchTab('nursing_projects')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap" id="tab-project">🚀 โครงการ</button>
-            <button type="button" onclick="switchTab('nursing_units')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap" id="tab-units">🏥 หน่วยงาน</button>
+            <button type="button" onclick="switchTab('training_courses')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-training">🎓 การอบรม</button>
+            <button type="button" onclick="switchTab('meeting_schedule')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-meeting">📝 การประชุม</button>
+            <button type="button" onclick="switchTab('nursing_projects')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-project">🚀 โครงการ</button>
+            <button type="button" onclick="switchTab('nursing_units')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-units">🏥 หน่วยงาน</button>
         </div>
 
         <!-- Toolbar -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h2 id="current-table-title" class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <span class="w-2 h-8 bg-rose-500 rounded-full inline-block"></span>
-                จัดการข้อมูล
-            </h2>
+            <div class="flex items-center gap-3">
+                <h2 id="current-table-title" class="text-2xl font-bold text-gray-800">จัดการข้อมูล</h2>
+                <span id="record-count" class="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold animate-pulse">รอโหลด...</span>
+            </div>
             <button type="button" onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition transform active:scale-95 w-full sm:w-auto justify-center font-medium">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> 
                 เพิ่มข้อมูลใหม่
@@ -64,7 +61,10 @@
         <!-- Data Table -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 relative min-h-[300px]">
             <div id="loadingSpinner" class="loading-overlay hidden">
-                <div class="animate-spin w-10 h-10 border-4 border-rose-500 rounded-full border-t-transparent"></div>
+                <div class="flex flex-col items-center">
+                    <div class="animate-spin w-10 h-10 border-4 border-rose-500 rounded-full border-t-transparent mb-2"></div>
+                    <span class="text-rose-600 font-medium text-sm">กำลังเชื่อมต่อฐานข้อมูล...</span>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600">
@@ -103,31 +103,27 @@
     </div>
 
 <script>
-    // ⚠️ แก้ไข URL ให้ตรงกับ Render ของคุณ (ห้ามมี / ต่อท้าย)
+    // ⚠️ แก้ไข URL นี้ให้ตรงกับ Render ของคุณ (ห้ามมี / ต่อท้าย)
     const API_BASE_URL = "https://rj-nurse-backend.onrender.com"; 
     
-    let currentTable = localStorage.getItem("last_tab") || "training_courses"; // จำแท็บล่าสุด
+    let currentTable = localStorage.getItem("last_tab") || "training_courses";
     let editingId = null;
 
     document.addEventListener("DOMContentLoaded", () => {
         const savedSecret = localStorage.getItem("admin_secret");
         if(savedSecret) document.getElementById('adminSecret').value = savedSecret;
-        
-        // โหลดแท็บล่าสุด
-        switchTab(currentTable, false); 
-        
-        // ถ้ามีรหัส ให้โหลดข้อมูลเลย
+        switchTab(currentTable, false);
         if(savedSecret) fetchData();
     });
 
     const TABLE_CONFIG = {
         "training_courses": {
             title: "จัดการหลักสูตรอบรม",
-            headers: ["หลักสูตร", "วันที่", "สถานที่", "ลิงก์", "สถานะ"],
+            headers: ["ชื่อหลักสูตร", "วันที่จัด", "ติดต่อ", "ลิงก์", "สถานะ"],
             fields: [
                 {name: "course_name", label: "ชื่อหลักสูตร", type: "text", col: "span-2"},
                 {name: "description", label: "รายละเอียด/เนื้อหา", type: "textarea", col: "span-2"},
-                {name: "date_start", label: "วันเริ่ม", type: "date"},
+                {name: "date_start", label: "วันเริ่มอบรม", type: "date"},
                 {name: "date_end", label: "วันสิ้นสุด", type: "date"},
                 {name: "location", label: "สถานที่จัด", type: "text", col: "span-2"},
                 {name: "link_register", label: "ลิงก์สมัคร (Google Form)", type: "text"},
@@ -136,29 +132,29 @@
                 {name: "unit_phone", label: "เบอร์หน่วยงาน", type: "text"},
                 {name: "contact_person", label: "ชื่อผู้ติดต่อ", type: "text"},
                 {name: "contact_phone", label: "เบอร์ผู้ติดต่อ", type: "text"},
-                {name: "process_status", label: "สถานะ", type: "select", options: ["เปิดรับสมัคร", "ปิดรับสมัคร", "กำลังดำเนินการ", "เสร็จสิ้น"]}
+                {name: "process_status", label: "สถานะ", type: "select", options: ["รอเปิดรับสมัคร", "เปิดรับสมัคร", "ปิดรับสมัคร", "กำลังดำเนินการ", "เสร็จสิ้น"]}
             ]
         },
         "meeting_schedule": {
             title: "จัดการการประชุม",
-            headers: ["หัวข้อ", "วันที่/เวลา", "ห้อง/ลิงก์", "ติดต่อ", "สถานะ"],
+            headers: ["หัวข้อ", "วันที่-เวลา", "ติดต่อ", "ลิงก์", "สถานะ"],
             fields: [
                 {name: "title", label: "หัวข้อประชุม", type: "text", col: "span-2"},
                 {name: "agenda", label: "วาระการประชุม", type: "textarea", col: "span-2"},
-                {name: "meeting_date", label: "วันที่", type: "date", col: "span-2"},
+                {name: "meeting_date", label: "วันที่", type: "date"},
                 {name: "start_time", label: "เวลาเริ่ม", type: "time"},
                 {name: "end_time", label: "เวลาเลิก", type: "time"},
                 {name: "room", label: "ห้องประชุม", type: "text"},
-                {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
                 {name: "link_register", label: "ลิงก์ลงทะเบียน", type: "text"},
+                {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
                 {name: "responsible_unit", label: "หน่วยงาน", type: "text"},
                 {name: "contact_person", label: "ผู้ติดต่อ", type: "text"},
-                {name: "process_status", label: "สถานะ", type: "select", options: ["นัดหมาย", "เลื่อน", "ยกเลิก"]}
+                {name: "process_status", label: "สถานะ", type: "select", options: ["นัดหมาย", "เลื่อน", "ยกเลิก", "ดำเนินการเสร็จสิ้น"]}
             ]
         },
         "nursing_projects": {
             title: "จัดการโครงการ",
-            headers: ["โครงการ", "หน่วยงาน", "ผู้ติดต่อ", "ลิงก์", "สถานะ"],
+            headers: ["ชื่อโครงการ", "หน่วยงาน", "ผู้ติดต่อ", "ลิงก์", "สถานะ"],
             fields: [
                 {name: "project_name", label: "ชื่อโครงการ", type: "text", col: "span-2"},
                 {name: "objective", label: "วัตถุประสงค์", type: "textarea", col: "span-2"},
@@ -184,7 +180,7 @@
 
     function switchTab(table, loadData = true) {
         currentTable = table;
-        localStorage.setItem("last_tab", table); // จำค่าไว้
+        localStorage.setItem("last_tab", table);
 
         document.querySelectorAll('.tab-btn').forEach(b => {
             b.classList.remove('bg-rose-500', 'text-white', 'shadow-md');
@@ -200,66 +196,71 @@
         activeBtn.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50');
         activeBtn.classList.add('bg-rose-500', 'text-white', 'shadow-md');
         
-        document.getElementById('current-table-title').innerHTML = `<span class="w-2 h-8 bg-rose-500 rounded-full inline-block"></span> ${TABLE_CONFIG[table].title}`;
+        document.getElementById('current-table-title').innerHTML = TABLE_CONFIG[table].title;
         renderTableHeader();
         if(loadData) fetchData();
     }
 
     function renderTableHeader() {
         const thead = document.getElementById('table-header');
-        thead.innerHTML = TABLE_CONFIG[currentTable].headers.map(h => `<th class="px-6 py-3 whitespace-nowrap border-b font-bold tracking-wider">${h}</th>`).join('') + `<th class="px-6 py-3 border-b text-center">จัดการ</th>`;
+        thead.innerHTML = TABLE_CONFIG[currentTable].headers.map(h => `<th class="px-6 py-3 whitespace-nowrap border-b font-bold tracking-wider text-gray-700">${h}</th>`).join('') + `<th class="px-6 py-3 border-b text-center text-gray-700 font-bold">จัดการ</th>`;
     }
 
     async function fetchData() {
         const secret = document.getElementById('adminSecret').value;
-        if(!secret) return; 
+        if(!secret) { Swal.fire('แจ้งเตือน', 'กรุณาใส่รหัส Admin ก่อนครับ', 'warning'); return; }
         
         localStorage.setItem("admin_secret", secret);
         
-        // Show Loading
         document.getElementById('loadingSpinner').classList.remove('hidden');
         document.getElementById('btnReload').disabled = true;
-        document.getElementById('btnReload').innerText = "กำลังโหลด...";
+        document.getElementById('btnReload').innerHTML = `...`;
 
         try {
-            const res = await axios.get(`${API_BASE_URL}/api/admin/${currentTable}`, { headers: { 'secret': secret } });
+            // Anti-Cache: เพิ่ม timestamp เพื่อบังคับโหลดใหม่เสมอ
+            const res = await axios.get(`${API_BASE_URL}/api/admin/${currentTable}?t=${new Date().getTime()}`, { headers: { 'secret': secret } });
             
             if(res.data.error) throw new Error(res.data.error);
             
+            // Update Record Count
+            const count = res.data.length;
+            document.getElementById('record-count').innerText = `${count} รายการ`;
+            document.getElementById('record-count').classList.remove('bg-gray-200', 'text-gray-600');
+            document.getElementById('record-count').classList.add('bg-green-100', 'text-green-700');
+
             const tbody = document.getElementById('table-body');
-            if(res.data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>ยังไม่มีข้อมูลในตารางนี้</td></tr>`;
+            if(count === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center text-gray-400 flex flex-col items-center gap-2">ยังไม่มีข้อมูลในตารางนี้</td></tr>`;
             } else {
                 tbody.innerHTML = res.data.map(row => {
                     let cols = '';
-                    // Logic การแสดงผลแต่ละตาราง
                     if(currentTable === 'nursing_units') {
                         cols = `<td class="px-6 py-4 font-bold text-gray-800">${row.unit_name}</td>
                                 <td class="px-6 py-4">${row.floor||'-'}</td>
                                 <td class="px-6 py-4 text-blue-600 font-medium">${row.phone_number||'-'}</td>
                                 <td class="px-6 py-4 text-gray-500 text-sm max-w-xs truncate">${row.description||''}</td>`;
                     } else {
-                        let contact = `<div class="text-sm font-semibold">${row.responsible_unit||'-'}</div>
-                                       <div class="text-xs text-gray-500">${row.unit_phone||''}</div>
-                                       ${row.contact_person ? `<div class="text-xs text-blue-500 mt-1">คุณ${row.contact_person}</div>` : ''}`;
+                        // Common Rendering
+                        let contact = `${row.responsible_unit||'-'}<br><span class="text-xs text-gray-500">${row.unit_phone||''}</span>`;
+                        if(row.contact_person) contact += `<br><span class="text-xs text-blue-500">คุณ${row.contact_person}</span>`;
                         
                         let linksHtml = '';
-                        if (row.link_register) linksHtml += `<a href="${row.link_register}" target="_blank" class="text-blue-600 hover:text-blue-800 block text-xs mb-1 flex items-center gap-1">📝 สมัคร</a>`;
-                        if (row.link_zoom) linksHtml += `<a href="${row.link_zoom}" target="_blank" class="text-green-600 hover:text-green-800 block text-xs flex items-center gap-1">📹 Zoom</a>`;
+                        if (row.link_register) linksHtml += `<a href="${row.link_register}" target="_blank" class="text-blue-600 hover:text-blue-800 block text-xs mb-1 flex items-center gap-1 font-semibold">📝 สมัคร</a>`;
+                        if (row.link_zoom) linksHtml += `<a href="${row.link_zoom}" target="_blank" class="text-green-600 hover:text-green-800 block text-xs flex items-center gap-1 font-semibold">📹 Zoom</a>`;
 
                         if(currentTable === 'training_courses') {
                             cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.course_name}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${row.date_start}</td>
-                                    <td class="px-6 py-4 text-sm">${row.location}</td>
+                                    <td class="px-6 py-4 text-sm">${contact}</td>
                                     <td class="px-6 py-4">${linksHtml}</td>
                                     <td class="px-6 py-4"><span class="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-1 rounded text-xs whitespace-nowrap">${row.process_status}</span></td>`;
                         } else if(currentTable === 'meeting_schedule') {
                             cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.title}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${row.meeting_date}<br>${row.start_time}</td>
-                                    <td class="px-6 py-4 text-sm">${row.room}</td>
                                     <td class="px-6 py-4 text-sm">${contact}</td>
+                                    <td class="px-6 py-4">${linksHtml}</td>
                                     <td class="px-6 py-4"><span class="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-1 rounded text-xs whitespace-nowrap">${row.process_status}</span></td>`;
-                        } else {
+                        } else if(currentTable === 'nursing_projects') {
                             cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.project_name}</td>
                                     <td class="px-6 py-4 text-sm">${row.responsible_unit}</td>
                                     <td class="px-6 py-4 text-sm">คุณ${row.contact_person||'-'}</td>
@@ -268,21 +269,20 @@
                         }
                     }
                     
-                    // ปุ่มจัดการ
                     const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
                     return `<tr class="bg-white border-b hover:bg-rose-50 transition duration-150">${cols}
                             <td class="px-6 py-4 text-center whitespace-nowrap">
-                                <button type="button" onclick='openEditModal(${rowData})' class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition mr-1" title="แก้ไข">✏️</button>
-                                <button type="button" onclick="deleteData(${row.id})" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition" title="ลบ">🗑️</button>
+                                <button type="button" onclick='openEditModal(${rowData})' class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition mr-1 shadow-sm border border-blue-100" title="แก้ไข">✏️</button>
+                                <button type="button" onclick="deleteData(${row.id})" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition shadow-sm border border-red-100" title="ลบ">🗑️</button>
                             </td></tr>`;
                 }).join('');
             }
         } catch (e) {
-            Swal.fire({ title: 'เกิดข้อผิดพลาด', text: e.message, icon: 'error', confirmButtonColor: '#e11d48' });
+            Swal.fire({ title: 'โหลดข้อมูลไม่สำเร็จ', text: e.message, icon: 'error', confirmButtonColor: '#e11d48' });
         } finally {
             document.getElementById('loadingSpinner').classList.add('hidden');
             document.getElementById('btnReload').disabled = false;
-            document.getElementById('btnReload').innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> โหลดข้อมูล`;
+            document.getElementById('btnReload').innerHTML = `โหลดข้อมูล`;
         }
     }
 
@@ -312,9 +312,11 @@
                             ${f.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
                          </select>`;
             } else if (f.type === 'textarea') {
-                input = `<textarea name="${f.name}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none h-24 resize-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">${val}</textarea>`;
+                input = `<textarea name="${f.name}" placeholder="${f.label}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none h-24 resize-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">${val}</textarea>`;
             } else {
-                input = `<input type="${f.type}" name="${f.name}" value="${val}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">`;
+                let type = f.type;
+                if(f.type === 'date' && val) val = val.split('T')[0]; // Fix date format
+                input = `<input type="${type}" name="${f.name}" value="${val}" placeholder="${f.label}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">`;
             }
             let colClass = f.col ? f.col : 'span-1';
             return `<div class="col-${colClass} ${f.type === 'textarea' ? 'md:col-span-2' : ''}">
@@ -344,7 +346,6 @@
             
             if(res.data.error) throw new Error(res.data.error);
             
-            // Toast Notification
             const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
             Toast.fire({ icon: 'success', title: editingId ? 'แก้ไขข้อมูลสำเร็จ' : 'เพิ่มข้อมูลสำเร็จ' });
             
