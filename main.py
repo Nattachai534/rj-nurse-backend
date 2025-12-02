@@ -68,7 +68,7 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
 def get_embedding(text):
     if not GEMINI_API_KEY: return []
     try:
-        # ลองใช้ Model embedding ตัวใหม่
+        # ใช้ Model embedding ตัวใหม่
         result = genai.embed_content(
             model="models/text-embedding-004",
             content=text,
@@ -127,7 +127,7 @@ def query_pinecone(vector):
         print(f"Pinecone Error: {e}")
         return ""
 
-# --- Core Logic with Model Fallback ---
+# --- Core Logic with Debug Info ---
 def generate_bot_response(user_query):
     restricted = ["เงินเดือน", "สลิป", "รหัสผ่าน", "admin", "ตารางเวรของ", "ข้อมูลส่วนตัว"]
     if any(w in user_query for w in restricted):
@@ -141,9 +141,15 @@ def generate_bot_response(user_query):
     
     prompt = f"ตอบคำถามพยาบาลสั้นๆ จากข้อมูลนี้: {full_context}\nคำถาม: {user_query}"
     
-    # 🌟 จุดแก้ปัญหา 404: ระบบ Retry Model 🌟
-    # ลองใช้รุ่น Flash ล่าสุดก่อน -> ถ้าไม่ได้ให้ใช้ Flash 001 -> ถ้าไม่ได้ให้ใช้ Pro 1.0
-    models_to_try = ['gemini-1.5-flash-latest', 'gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-pro']
+    # 🌟 เพิ่มรุ่น Model ให้ครบทุกแบบ และเก็บ Error ล่าสุดมาโชว์ 🌟
+    models_to_try = [
+        'gemini-1.5-flash', 
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-flash-001', 
+        'gemini-pro'
+    ]
+    
+    last_error_msg = ""
     
     for model_name in models_to_try:
         try:
@@ -152,9 +158,11 @@ def generate_bot_response(user_query):
             return response.text
         except Exception as e:
             print(f"Model {model_name} failed: {e}")
-            continue # ลองรุ่นถัดไป
+            last_error_msg = str(e) # เก็บ Error ไว้ดู
+            continue 
             
-    return "ขออภัย ระบบ AI ขัดข้องชั่วคราว (Model Not Found)"
+    # ถ้าพังทุกรุ่น ให้ส่ง Error จริงกลับไปที่หน้าแชทเลย (จะได้รู้ว่าผิดตรงไหน)
+    return f"⚠️ ระบบขัดข้อง (Debug Info): {last_error_msg}"
 
 # --- API Endpoints ---
 class ChatRequest(BaseModel):
