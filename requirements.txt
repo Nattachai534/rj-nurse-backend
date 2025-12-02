@@ -2,7 +2,7 @@ fastapi
 uvicorn
 mysql-connector-python
 pinecone
-google-generativeai
+google-generativeai>=0.7.2
 pydantic
 python-multipart
 line-bot-sdk
