@@ -10,11 +10,12 @@ import threading
 from datetime import datetime, timedelta
 
 from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
+from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = FastAPI()
 
+# --- CORS Setup ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -23,6 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Configuration ---
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
@@ -45,6 +47,7 @@ MYSQL_CONFIG = {
     'ssl_disabled': False
 }
 
+# --- Initialization ---
 if GEMINI_API_KEY: genai.configure(api_key=GEMINI_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
 index = pc.Index("nursing-kb") if pc else None
@@ -55,6 +58,11 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
     line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
     handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+# ✅ ย้าย Class มาไว้ตรงนี้ (ก่อนถูกเรียกใช้)
+class ChatRequest(BaseModel): 
+    message: str
+
+# --- Helper Functions ---
 def get_db_connection(): return mysql.connector.connect(**MYSQL_CONFIG)
 
 def get_embedding(text):
@@ -116,19 +124,19 @@ def query_mysql(user_query, role='guest'):
         fetch_job = any(k in q for k in ['สมัครงาน', 'รับสมัคร', 'ตำแหน่ง', 'ว่าง', 'งาน'])
         fetch_news = any(k in q for k in ['ข่าว', 'ประกาศ', 'ประชาสัมพันธ์', 'แจ้ง'])
 
-        # 1. อบรม (ดึง Zoom ID/Passcode)
+        # 1. อบรม
         if fetch_training:
             try:
-                sql = f"""SELECT course_name, description, date_start, link_register, link_zoom, zoom_meeting_id, zoom_passcode, process_status, visibility 
+                sql = f"""SELECT course_name, description, date_start, link_register, link_zoom, zoom_meeting_id, zoom_passcode, link_poster, process_status, visibility 
                           FROM training_courses WHERE (course_name LIKE %s OR description LIKE %s) {access_filter} ORDER BY date_start ASC LIMIT 5"""
                 cursor.execute(sql, (f"%{user_query}%", f"%{user_query}%"))
                 for t in cursor.fetchall():
                     zoom = format_zoom(t['link_zoom'], t['zoom_meeting_id'], t['zoom_passcode'])
                     lock = "🔒" if t['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} อบรม: {t['course_name']} ({t['date_start']}) {t['process_status']} {zoom}")
-            except: pass
+            except Exception as e: print(f"Training Query Error: {e}")
 
-        # 2. ประชุม (ดึง Zoom ID/Passcode)
+        # 2. ประชุม
         if fetch_meeting:
             try:
                 sql = f"""SELECT title, meeting_date, start_time, room, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
@@ -138,9 +146,9 @@ def query_mysql(user_query, role='guest'):
                     zoom = format_zoom(m['link_zoom'], m['zoom_meeting_id'], m['zoom_passcode'])
                     lock = "🔒" if m['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} ประชุม: {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']} {zoom}")
-            except: pass
+            except Exception as e: print(f"Meeting Query Error: {e}")
 
-        # 3. โครงการ (ดึง Zoom ID/Passcode)
+        # 3. โครงการ
         if fetch_project:
             try:
                 sql = f"""SELECT project_name, process_status, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
@@ -150,35 +158,36 @@ def query_mysql(user_query, role='guest'):
                     zoom = format_zoom(p['link_zoom'], p['zoom_meeting_id'], p['zoom_passcode'])
                     lock = "🔒" if p['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} โครงการ: {p['project_name']} [{p['process_status']}] {zoom}")
-            except: pass
-        
-        # 4. ข่าวสาร (ดึง Zoom ID/Passcode เผื่อเป็น Webinar)
-        if fetch_news:
-            try:
-                sql = f"""SELECT topic, news_date, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
-                          FROM nursing_news WHERE (topic LIKE %s) {access_filter} AND status='active' LIMIT 5"""
-                cursor.execute(sql, (f"%{user_query}%",))
-                for n in cursor.fetchall():
-                    zoom = format_zoom(n['link_zoom'], n['zoom_meeting_id'], n['zoom_passcode'])
-                    lock = "🔒" if n['visibility'] == 'staff' else "🌍"
-                    results_text.append(f"- {lock} ข่าว: {n['topic']} ({n['news_date']}) {zoom}")
-            except: pass
+            except Exception as e: print(f"Project Query Error: {e}")
 
-        # 4. หน่วยงาน & 5. สมัครงาน (เหมือนเดิม)
+        # 4. หน่วยงาน
         if fetch_unit:
             try:
-                cursor.execute(f"SELECT unit_name, floor, phone_number FROM nursing_units WHERE (unit_name LIKE %s) {access_filter} LIMIT 5", (f"%{user_query}%",))
+                sql = f"SELECT unit_name, floor, phone_number FROM nursing_units WHERE (unit_name LIKE %s) {access_filter} LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
                 for u in cursor.fetchall(): results_text.append(f"- {u['unit_name']} ({u['floor']}) โทร {u['phone_number']}")
-            except: pass
-            
+            except Exception as e: print(f"Unit Query Error: {e}")
+
+        # 5. สมัครงาน
         if fetch_job:
             try:
-                cursor.execute(f"SELECT position_name, date_close FROM job_postings WHERE (position_name LIKE %s) {access_filter} AND status='open' LIMIT 5", (f"%{user_query}%",))
+                sql = f"SELECT position_name, date_close FROM job_postings WHERE (position_name LIKE %s) {access_filter} AND status='open' LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
                 for j in cursor.fetchall(): results_text.append(f"- งาน: {j['position_name']} (ปิด: {j['date_close']})")
-            except: pass
+            except Exception as e: print(f"Job Query Error: {e}")
+
+        # 6. ข่าวสาร
+        if fetch_news:
+            try:
+                sql = f"SELECT topic, news_date, link_website FROM nursing_news WHERE (topic LIKE %s) {access_filter} AND status='active' LIMIT 5"
+                cursor.execute(sql, (f"%{user_query}%",))
+                for n in cursor.fetchall(): results_text.append(f"- ข่าว: {n['topic']} ({n['news_date']}) [อ่าน: {n['link_website']}]")
+            except Exception as e: print(f"News Query Error: {e}")
 
         return "\n".join(results_text) if results_text else ""
-    except Exception: return ""
+    except Exception as e: 
+        print(f"DB Connection Error: {e}")
+        return ""
     finally:
         if conn and conn.is_connected(): conn.close()
 
@@ -201,13 +210,13 @@ def generate_bot_response(user_query, role='guest', user_name=None):
     
     role_txt = f"เจ้าหน้าที่ ({user_name})" if role == 'staff' else "บุคคลทั่วไป"
     context = f"สถานะผู้ถาม: {role_txt}\nเอกสาร:\n{pinecone_data}\n\nฐานข้อมูล:\n{mysql_data}"
-    prompt = f"ตอบคำถามพยาบาล: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025)"
+    prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025)\nถ้ามี Zoom Meeting ID และ Passcode ต้องระบุด้วยเสมอ"
     
     try:
         return genai.GenerativeModel('models/gemini-flash-latest').generate_content(prompt).text
     except: return "ขออภัย ระบบขัดข้องชั่วคราว"
 
-# --- Notification ---
+# --- Admin & Notification ---
 def check_and_send_notifications():
     try:
         conn = get_db_connection()
@@ -240,7 +249,6 @@ def trigger_notification(secret: str = Header(None)):
     threading.Thread(target=check_and_send_notifications).start()
     return {"status": "Notification task started"}
 
-# --- Admin API ---
 @app.get("/api/admin/{table_name}")
 def admin_get_data(table_name: str, secret: str = Header(None)):
     if secret != ADMIN_SECRET: raise HTTPException(401, "Invalid Admin Secret")
@@ -313,7 +321,7 @@ def admin_delete_data(table_name: str, record_id: str, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V16.0 Running"}
+def root(): return {"status": "RJ Nurse Backend V16.2 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
@@ -328,31 +336,33 @@ async def callback(request: Request):
 if handler:
     @handler.add(MessageEvent, message=TextMessage)
     def handle_message(event):
-        user_msg = event.message.text.strip()
-        user_id = event.source.user_id
-        
-        if user_msg.startswith("ลงทะเบียน"):
-            try:
+        try:
+            user_msg = event.message.text.strip()
+            user_id = event.source.user_id
+            
+            # Registration Logic
+            if user_msg.startswith("ลงทะเบียน"):
                 content = user_msg.replace("ลงทะเบียน:", "").replace("ลงทะเบียน", "").strip()
-                parts = content.split() 
+                parts = content.split()
                 if len(parts) < 3:
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ รูปแบบผิดครับ\nพิมพ์: ลงทะเบียน ชื่อ นามสกุล รหัสลับ"))
                     return
                 if parts[-1] != STAFF_REGISTRATION_CODE:
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ รหัสลับไม่ถูกต้อง"))
                     return
-                fname = parts[0]
-                lname = parts[1]
-                dept = " ".join(parts[2:-1]) if len(parts) > 3 else "-"
+                fname = parts[0]; lname = parts[1]; dept = " ".join(parts[2:-1]) if len(parts) > 3 else "-"
                 if register_staff_profile(user_id, fname, lname, dept):
-                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ ยืนยันตัวตนสำเร็จ!\nยินดีต้อนรับคุณ {fname} {lname} เข้าสู่ระบบครับ"))
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ ลงทะเบียนสำเร็จ!\nยินดีต้อนรับคุณ {fname} {lname} ครับ"))
                 else:
                     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ บันทึกข้อมูลล้มเหลว"))
                 return
-            except Exception:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="❌ เกิดข้อผิดพลาด"))
-                return
 
-        role, user_name = get_user_role(user_id)
-        reply_text = generate_bot_response(user_msg, role, user_name)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+            # Chat Logic
+            role, user_name = get_user_role(user_id)
+            reply_text = generate_bot_response(user_msg, role, user_name)
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+
+        except LineBotApiError as e:
+            print(f"LINE API Error: {e}")
+        except Exception as e:
+            print(f"General Error: {e}")
