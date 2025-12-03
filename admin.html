@@ -7,70 +7,72 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style> 
         body { font-family: 'Sarabun', sans-serif; } 
         textarea::-webkit-scrollbar { width: 8px; }
         textarea::-webkit-scrollbar-track { background: #f1f1f1; }
         textarea::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        textarea::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 20; backdrop-filter: blur(2px); }
+        .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(2px); }
+        .form-section-title {
+            grid-column: 1 / -1;
+            font-weight: 700;
+            color: #be123c;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 2px solid #fecdd3;
+            padding-bottom: 0.25rem;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .form-section-title:first-child { margin-top: 0; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-50 min-h-screen">
 
-    <nav class="bg-gradient-to-r from-rose-600 to-pink-600 text-white p-4 shadow-lg sticky top-0 z-40">
+    <nav class="bg-gradient-to-r from-rose-700 to-pink-600 text-white p-4 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="bg-white text-rose-600 p-1 rounded-full shadow-md">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                </span>
-                Admin V3.9 <span class="text-xs bg-rose-800 px-2 py-0.5 rounded-full text-rose-100">Anti-Cache</span>
+                🏥 Admin V16.0 (Verified)
             </h1>
             <div class="flex gap-2 items-center bg-white/10 p-1.5 rounded-lg border border-white/20">
-                <input type="password" id="adminSecret" placeholder="รหัส Admin..." class="px-3 py-1.5 text-gray-800 rounded text-sm w-32 border-none focus:ring-2 focus:ring-white/50 shadow-inner bg-white">
-                <button type="button" id="btnReload" onclick="fetchData()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm transition font-bold shadow-md active:transform active:scale-95 flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    โหลดข้อมูล
-                </button>
+                <input type="password" id="adminSecret" placeholder="รหัส Admin..." class="px-3 py-1.5 text-gray-800 rounded text-sm w-32 border-none shadow-inner bg-white focus:ring-2 focus:ring-rose-300">
+                <button type="button" id="btnReload" onclick="fetchData()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm transition font-bold shadow-md">โหลดข้อมูล</button>
             </div>
         </div>
     </nav>
 
     <div class="container mx-auto p-4 sm:p-6">
-        <!-- Tabs -->
-        <div class="flex gap-2 mb-6 border-b-2 border-gray-200 pb-1 overflow-x-auto select-none">
-            <button type="button" onclick="switchTab('training_courses')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-training">🎓 การอบรม</button>
-            <button type="button" onclick="switchTab('meeting_schedule')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-meeting">📝 การประชุม</button>
-            <button type="button" onclick="switchTab('nursing_projects')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-project">🚀 โครงการ</button>
-            <button type="button" onclick="switchTab('nursing_units')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold transition-all duration-200 whitespace-nowrap text-sm" id="tab-units">🏥 หน่วยงาน</button>
+        <div class="flex gap-2 mb-6 border-b-2 border-gray-200 pb-1 overflow-x-auto select-none no-scrollbar">
+            <button onclick="switchTab('training_courses')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-training">🎓 อบรม</button>
+            <button onclick="switchTab('meeting_schedule')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-meeting">📝 ประชุม</button>
+            <button onclick="switchTab('nursing_projects')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-project">🚀 โครงการ</button>
+            <button onclick="switchTab('nursing_units')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-units">🏥 หน่วยงาน</button>
+            <button onclick="switchTab('job_postings')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-job">💼 สมัครงาน</button>
+            <button onclick="switchTab('nursing_news')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap transition-colors" id="tab-news">📢 ข่าวสาร</button>
+            <button onclick="switchTab('line_users')" class="tab-btn px-5 py-2.5 rounded-t-lg font-semibold whitespace-nowrap bg-purple-100 text-purple-700" id="tab-staff">👤 เจ้าหน้าที่</button>
         </div>
 
-        <!-- Toolbar -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
             <div class="flex items-center gap-3">
                 <h2 id="current-table-title" class="text-2xl font-bold text-gray-800">จัดการข้อมูล</h2>
-                <span id="record-count" class="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold animate-pulse">รอโหลด...</span>
+                <span id="record-count" class="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold shadow-sm">...</span>
             </div>
             <button type="button" onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition transform active:scale-95 w-full sm:w-auto justify-center font-medium">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> 
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> 
                 เพิ่มข้อมูลใหม่
             </button>
         </div>
 
-        <!-- Data Table -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 relative min-h-[300px]">
-            <div id="loadingSpinner" class="loading-overlay hidden">
+            <div id="loadingSpinner" class="hidden loading-overlay">
                 <div class="flex flex-col items-center">
-                    <div class="animate-spin w-10 h-10 border-4 border-rose-500 rounded-full border-t-transparent mb-2"></div>
-                    <span class="text-rose-600 font-medium text-sm">กำลังเชื่อมต่อฐานข้อมูล...</span>
+                    <div class="animate-spin w-12 h-12 border-4 border-rose-500 rounded-full border-t-transparent mb-3"></div>
+                    <span class="text-rose-600 font-bold animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</span>
                 </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600">
-                    <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b">
-                        <tr id="table-header"></tr>
-                    </thead>
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b"><tr id="table-header"></tr></thead>
                     <tbody id="table-body" class="divide-y divide-gray-100">
                         <tr><td colspan="10" class="p-10 text-center text-gray-400">กรุณาใส่รหัส Admin และกดโหลดข้อมูล...</td></tr>
                     </tbody>
@@ -79,23 +81,22 @@
         </div>
     </div>
 
-    <!-- Modal Form -->
+    <!-- Modal Form (Large) -->
     <div id="addModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4 transition-opacity">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-3xl shadow-2xl transform transition-all scale-100 max-h-[90vh] overflow-y-auto border border-gray-100">
-            <div class="flex justify-between items-center mb-5 border-b pb-3">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-5xl shadow-2xl transform transition-all scale-100 max-h-[95vh] overflow-y-auto border border-gray-100 flex flex-col">
+            <div class="flex justify-between items-center mb-5 border-b pb-3 sticky top-0 bg-white z-10">
                 <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="bg-rose-100 text-rose-600 p-1.5 rounded-lg"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></span>
+                    <span class="bg-rose-100 text-rose-600 p-1.5 rounded-lg">📝</span> 
                     <span id="modalTitle">เพิ่มข้อมูล</span>
                 </h3>
-                <button type="button" onclick="closeAddModal()" class="text-gray-400 hover:text-red-500 transition text-2xl font-bold">&times;</button>
+                <button type="button" onclick="closeAddModal()" class="text-gray-400 hover:text-red-500 text-3xl font-bold leading-none">&times;</button>
             </div>
             
-            <form id="addForm" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4" onsubmit="event.preventDefault();"></form>
+            <form id="addForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4" onsubmit="event.preventDefault();"></form>
             
-            <div class="mt-8 flex justify-end gap-3 border-t pt-4">
+            <div class="mt-auto border-t pt-4 flex justify-end gap-3 sticky bottom-0 bg-white z-10">
                 <button type="button" onclick="closeAddModal()" class="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition">ยกเลิก</button>
                 <button type="button" onclick="submitData()" id="btnSave" class="px-6 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 shadow-md font-bold transition flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
                     บันทึกข้อมูล
                 </button>
             </div>
@@ -103,100 +104,245 @@
     </div>
 
 <script>
-    // ⚠️ แก้ไข URL นี้ให้ตรงกับ Render ของคุณ (ห้ามมี / ต่อท้าย)
     const API_BASE_URL = "https://rj-nurse-backend.onrender.com"; 
-    
     let currentTable = localStorage.getItem("last_tab") || "training_courses";
     let editingId = null;
 
     document.addEventListener("DOMContentLoaded", () => {
         const savedSecret = localStorage.getItem("admin_secret");
-        if(savedSecret) document.getElementById('adminSecret').value = savedSecret;
+        if(savedSecret) { document.getElementById('adminSecret').value = savedSecret; fetchData(); }
         switchTab(currentTable, false);
-        if(savedSecret) fetchData();
     });
 
+    const visibilityField = {name: "visibility", label: "🔒 การเข้าถึง", type: "select", options: ["public", "staff"]};
+
+    // --- TABLE CONFIGURATION: ตรงกับ Database V16.0 ครบทุกช่อง ---
     const TABLE_CONFIG = {
         "training_courses": {
             title: "จัดการหลักสูตรอบรม",
-            headers: ["ชื่อหลักสูตร", "วันที่จัด", "ติดต่อ", "ลิงก์", "สถานะ"],
+            headers: ["ชื่อหลักสูตร", "วันที่", "สถานะ", "การเข้าถึง"],
             fields: [
-                {name: "course_name", label: "ชื่อหลักสูตร", type: "text", col: "span-2"},
-                {name: "description", label: "รายละเอียด/เนื้อหา", type: "textarea", col: "span-2"},
+                {label: "📌 ข้อมูลหลักสูตร", type: "header"},
+                {name: "course_name", label: "ชื่อหลักสูตร", type: "text", col: "md:col-span-2"},
+                {name: "description", label: "รายละเอียดเนื้อหา", type: "textarea", col: "md:col-span-3"},
+                {name: "speaker", label: "วิทยากร", type: "text"},
+                {name: "cneu_points", label: "คะแนน CNEU", type: "number"},
+                {name: "max_seats", label: "จำนวนรับ (คน)", type: "number"},
+                visibilityField,
+
+                {label: "📅 กำหนดการ", type: "header"},
+                {name: "date_announce", label: "วันประกาศ", type: "date"},
                 {name: "date_start", label: "วันเริ่มอบรม", type: "date"},
-                {name: "date_end", label: "วันสิ้นสุด", type: "date"},
-                {name: "location", label: "สถานที่จัด", type: "text", col: "span-2"},
-                {name: "link_register", label: "ลิงก์สมัคร (Google Form)", type: "text"},
-                {name: "link_zoom", label: "ลิงก์ Zoom/Online", type: "text"},
+                {name: "date_end", label: "วันสิ้นสุดอบรม", type: "date"},
+                {name: "date_exam_written", label: "วันสอบข้อเขียน", type: "date"},
+                {name: "date_exam_interview", label: "วันสอบสัมภาษณ์", type: "date"},
+                {name: "date_report", label: "วันรายงานตัว", type: "date"},
+                
+                {label: "📍 สถานที่ & ติดต่อ", type: "header"},
+                {name: "location", label: "สถานที่จัดงาน", type: "text", col: "md:col-span-2"},
                 {name: "responsible_unit", label: "หน่วยงานรับผิดชอบ", type: "text"},
                 {name: "unit_phone", label: "เบอร์หน่วยงาน", type: "text"},
+                {name: "unit_floor", label: "ชั้น/ตึก", type: "text"},
                 {name: "contact_person", label: "ชื่อผู้ติดต่อ", type: "text"},
                 {name: "contact_phone", label: "เบอร์ผู้ติดต่อ", type: "text"},
-                {name: "process_status", label: "สถานะ", type: "select", options: ["รอเปิดรับสมัคร", "เปิดรับสมัคร", "ปิดรับสมัคร", "กำลังดำเนินการ", "เสร็จสิ้น"]}
+
+                {label: "💻 Zoom Meeting", type: "header"},
+                {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
+                {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
+                {name: "zoom_passcode", label: "Passcode", type: "text"},
+
+                {label: "🔗 ลิงก์ต่างๆ", type: "header"},
+                {name: "link_register", label: "ลิงก์สมัคร (Google Form)", type: "text"},
+                {name: "link_doc_application", label: "ลิงก์เอกสารประกอบ", type: "text"},
+                {name: "link_poster", label: "ลิงก์โปสเตอร์", type: "text"},
+                {name: "link_announce_written", label: "ลิงก์ผลข้อเขียน", type: "text"},
+                {name: "link_announce_interview", label: "ลิงก์ผลสัมภาษณ์", type: "text"},
+                {name: "link_announce_final", label: "ลิงก์ผล Final", type: "text"},
+
+                {label: "⚙️ สถานะ", type: "header"},
+                {name: "process_status", label: "ขั้นตอนปัจจุบัน", type: "select", col: "md:col-span-2", options: ["รอเปิดรับสมัคร", "เปิดรับสมัคร", "ปิดรับสมัคร", "สอบคัดเลือก", "สอบสัมภาษณ์", "ประกาศรายชื่อ", "กำลังดำเนินการ", "เสร็จสิ้น"]},
+                {name: "status", label: "สถานะเปิด/ปิด", type: "select", options: ["open", "full", "closed"]}
             ]
         },
         "meeting_schedule": {
             title: "จัดการการประชุม",
-            headers: ["หัวข้อ", "วันที่-เวลา", "ติดต่อ", "ลิงก์", "สถานะ"],
+            headers: ["หัวข้อ", "วันที่", "สถานะ", "การเข้าถึง"],
             fields: [
-                {name: "title", label: "หัวข้อประชุม", type: "text", col: "span-2"},
-                {name: "agenda", label: "วาระการประชุม", type: "textarea", col: "span-2"},
+                {label: "📌 ข้อมูลการประชุม", type: "header"},
+                {name: "title", label: "หัวข้อการประชุม", type: "text", col: "md:col-span-2"},
+                {name: "agenda", label: "วาระการประชุม", type: "textarea", col: "md:col-span-3"},
+                {name: "meeting_type", label: "ประเภท", type: "select", options: ["internal", "academic", "committee"]},
+                {name: "attendees_target", label: "ผู้เข้าร่วม", type: "text", col: "md:col-span-2"},
+                visibilityField,
+
+                {label: "📅 วันและเวลา", type: "header"},
                 {name: "meeting_date", label: "วันที่", type: "date"},
-                {name: "start_time", label: "เวลาเริ่ม", type: "time"},
-                {name: "end_time", label: "เวลาเลิก", type: "time"},
-                {name: "room", label: "ห้องประชุม", type: "text"},
-                {name: "link_register", label: "ลิงก์ลงทะเบียน", type: "text"},
+                {name: "start_time", label: "เริ่ม", type: "time"},
+                {name: "end_time", label: "เลิก", type: "time"},
+                {name: "room", label: "ห้องประชุม", type: "text", col: "md:col-span-2"},
+
+                {label: "💻 Zoom Meeting", type: "header"},
                 {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
+                {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
+                {name: "zoom_passcode", label: "Passcode", type: "text"},
+
+                {label: "📞 ติดต่อ & เอกสาร", type: "header"},
                 {name: "responsible_unit", label: "หน่วยงาน", type: "text"},
+                {name: "unit_phone", label: "เบอร์หน่วยงาน", type: "text"},
+                {name: "unit_floor", label: "ชั้น/ตึก", type: "text"},
                 {name: "contact_person", label: "ผู้ติดต่อ", type: "text"},
-                {name: "process_status", label: "สถานะ", type: "select", options: ["นัดหมาย", "เลื่อน", "ยกเลิก", "ดำเนินการเสร็จสิ้น"]}
+                {name: "contact_phone", label: "เบอร์ผู้ติดต่อ", type: "text"},
+                {name: "link_register", label: "ลิงก์ลงทะเบียน", type: "text"},
+                {name: "link_poster", label: "ลิงก์รูป/เอกสาร", type: "text"},
+                {name: "file_attachment", label: "ลิงก์ไฟล์แนบ", type: "text"},
+
+                {label: "⚙️ สถานะ", type: "header"},
+                {name: "process_status", label: "สถานะ", type: "select", col: "md:col-span-2", options: ["นัดหมาย", "เลื่อน", "ยกเลิก", "ดำเนินการเสร็จสิ้น"]}
             ]
         },
         "nursing_projects": {
             title: "จัดการโครงการ",
-            headers: ["ชื่อโครงการ", "หน่วยงาน", "ผู้ติดต่อ", "ลิงก์", "สถานะ"],
+            headers: ["โครงการ", "หน่วยงาน", "สถานะ", "การเข้าถึง"],
             fields: [
-                {name: "project_name", label: "ชื่อโครงการ", type: "text", col: "span-2"},
-                {name: "objective", label: "วัตถุประสงค์", type: "textarea", col: "span-2"},
+                {label: "📌 ข้อมูลโครงการ", type: "header"},
+                {name: "project_name", label: "ชื่อโครงการ", type: "text", col: "md:col-span-2"},
+                {name: "objective", label: "วัตถุประสงค์", type: "textarea", col: "md:col-span-3"},
                 {name: "fiscal_year", label: "ปีงบประมาณ", type: "number", value: 2568},
-                {name: "responsible_unit", label: "หน่วยงาน", type: "text"},
-                {name: "contact_person", label: "ผู้ติดต่อ", type: "text"},
-                {name: "link_register", label: "ลิงก์ข้อมูล", type: "text"},
+                {name: "budget", label: "งบประมาณ (บาท)", type: "number"},
+                visibilityField,
+
+                {label: "📅 ระยะเวลา", type: "header"},
+                {name: "date_announce", label: "วันประกาศ", type: "date"},
+                {name: "start_date", label: "วันเริ่ม", type: "date"},
+                {name: "end_date", label: "วันสิ้นสุด", type: "date"},
+
+                {label: "📍 สถานที่ & Zoom", type: "header"},
+                {name: "location", label: "สถานที่จัด", type: "text", col: "md:col-span-2"},
                 {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
-                {name: "process_status", label: "สถานะ", type: "select", options: ["วางแผน", "กำลังดำเนินงาน", "เสร็จสิ้น"]}
+                {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
+                {name: "zoom_passcode", label: "Passcode", type: "text"},
+
+                {label: "📞 ผู้รับผิดชอบ", type: "header"},
+                {name: "responsible_unit", label: "หน่วยงาน", type: "text"},
+                {name: "unit_phone", label: "เบอร์หน่วยงาน", type: "text"},
+                {name: "unit_floor", label: "ชั้น/ตึก", type: "text"},
+                {name: "contact_person", label: "ผู้ติดต่อ", type: "text"},
+                {name: "contact_phone", label: "เบอร์มือถือ", type: "text"},
+
+                {label: "🔗 ลิงก์อื่นๆ", type: "header"},
+                {name: "link_register", label: "ลิงก์ข้อมูล/สมัคร", type: "text"},
+                {name: "link_poster", label: "ลิงก์โปสเตอร์", type: "text"},
+
+                {label: "⚙️ สถานะ", type: "header"},
+                {name: "process_status", label: "ขั้นตอน", type: "select", options: ["วางแผน", "อนุมัติโครงการ", "กำลังดำเนินงาน", "สรุปผล", "เสร็จสิ้น", "ยกเลิก"]},
+                {name: "status", label: "สถานะเปิด/ปิด", type: "select", options: ["planned", "ongoing", "completed", "cancelled"]}
             ]
         },
         "nursing_units": {
-            title: "ข้อมูลหน่วยงาน/เบอร์โทร",
-            headers: ["ชื่อหน่วยงาน", "ชั้น/ตึก", "เบอร์โทร", "รายละเอียด"],
+            title: "ข้อมูลหน่วยงาน",
+            headers: ["ชื่อหน่วยงาน", "เบอร์โทร", "การเข้าถึง"],
             fields: [
-                {name: "unit_name", label: "ชื่อหน่วยงาน/Ward", type: "text", col: "span-2"},
+                {label: "📌 ข้อมูลพื้นฐาน", type: "header"},
+                {name: "unit_name", label: "ชื่อหน่วยงาน/Ward", type: "text", col: "md:col-span-2"},
                 {name: "floor", label: "ชั้น/อาคาร", type: "text"},
                 {name: "phone_number", label: "เบอร์โทรศัพท์", type: "text"},
-                {name: "description", label: "รายละเอียดเพิ่มเติม", type: "textarea", col: "span-2"}
+                {name: "description", label: "รายละเอียดเพิ่มเติม", type: "textarea", col: "md:col-span-3"},
+                {name: "link_poster", label: "ลิงก์แผนที่", type: "text"},
+                visibilityField
+            ]
+        },
+        "job_postings": {
+            title: "ประกาศรับสมัครงาน",
+            headers: ["ตำแหน่ง", "ปิดรับ", "สถานะ", "การเข้าถึง"],
+            fields: [
+                {label: "📌 ข้อมูลตำแหน่ง", type: "header"},
+                {name: "position_name", label: "ตำแหน่งที่เปิดรับ", type: "text", col: "md:col-span-2"},
+                {name: "quantity", label: "จำนวนรับ (อัตรา)", type: "number"},
+                {name: "description", label: "คุณสมบัติ/รายละเอียด", type: "textarea", col: "md:col-span-3"},
+                visibilityField,
+
+                {label: "📅 ระยะเวลา", type: "header"},
+                {name: "date_open", label: "วันที่เปิดรับ", type: "date"},
+                {name: "date_close", label: "วันที่ปิดรับ", type: "date"},
+
+                {label: "📍 การติดต่อ", type: "header"},
+                {name: "location_apply", label: "สถานที่ยื่นใบสมัคร", type: "text", col: "md:col-span-2"},
+                {name: "contact_info", label: "เบอร์ติดต่อสอบถาม", type: "text"},
+                {name: "link_apply", label: "ลิงก์สมัครออนไลน์", type: "text"},
+                {name: "link_poster", label: "ลิงก์ประกาศ", type: "text"},
+                {name: "link_website", label: "เว็บไซต์ประกาศ", type: "text"},
+
+                {label: "⚙️ สถานะ", type: "header"},
+                {name: "status", label: "สถานะเปิดรับ", type: "select", options: ["open", "closed"]},
+                {name: "process_status", label: "ขั้นตอนปัจจุบัน", type: "select", options: ["เปิดรับสมัคร", "ประกาศรายชื่อผู้มีสิทธิ์สอบ", "สอบข้อเขียน/ปฏิบัติ", "สอบสัมภาษณ์", "ประกาศผล", "ปิดรับสมัคร"]}
+            ]
+        },
+        "nursing_news": {
+            title: "ข่าวประชาสัมพันธ์",
+            headers: ["หัวข้อข่าว", "วันที่", "การเข้าถึง"],
+            fields: [
+                {label: "📌 เนื้อหาข่าว", type: "header"},
+                {name: "topic", label: "หัวข้อข่าว", type: "text", col: "md:col-span-2"},
+                {name: "detail", label: "รายละเอียดเนื้อหา", type: "textarea", col: "md:col-span-3"},
+                visibilityField,
+
+                {label: "📅 วันเวลา", type: "header"},
+                {name: "news_date", label: "วันที่", type: "date"},
+                {name: "news_time", label: "เวลา", type: "time"},
+
+                {label: "📍 แหล่งที่มา & Zoom", type: "header"},
+                {name: "source_unit", label: "จากหน่วยงาน", type: "text"},
+                {name: "location", label: "สถานที่ (ถ้ามี)", type: "text"},
+                {name: "contact_info", label: "ติดต่อสอบถาม", type: "text"},
+                {name: "link_zoom", label: "ลิงก์ Zoom (ถ้ามี)", type: "text"},
+                {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
+                {name: "zoom_passcode", label: "Passcode", type: "text"},
+
+                {label: "🔗 ลิงก์อื่นๆ", type: "header"},
+                {name: "link_website", label: "ลิงก์อ่านต่อ", type: "text"},
+                {name: "link_document", label: "ลิงก์เอกสาร (PDF)", type: "text"},
+                {name: "link_poster", label: "ลิงก์รูปข่าว", type: "text"},
+                
+                {name: "status", label: "สถานะ", type: "select", options: ["active", "archived"]}
+            ]
+        },
+        "line_users": {
+            title: "จัดการสิทธิ์ผู้ใช้งาน LINE",
+            headers: ["Line ID", "ชื่อ-สกุล", "สถานะสิทธิ์"],
+            fields: [
+                {name: "line_user_id", label: "Line User ID", type: "text", col: "md:col-span-2"},
+                {name: "first_name", label: "ชื่อจริง", type: "text"},
+                {name: "last_name", label: "นามสกุล", type: "text"},
+                {name: "department", label: "หน่วยงาน", type: "text"},
+                {name: "role", label: "สถานะสิทธิ์", type: "select", options: ["guest", "staff", "admin"]}
             ]
         }
     };
 
+    // ... (ฟังก์ชัน switchTab, fetchData, renderRow, openAddModal, submitData, deleteData เหมือนเดิม) ...
     function switchTab(table, loadData = true) {
         currentTable = table;
         localStorage.setItem("last_tab", table);
-
         document.querySelectorAll('.tab-btn').forEach(b => {
             b.classList.remove('bg-rose-500', 'text-white', 'shadow-md');
             b.classList.add('bg-white', 'text-gray-600', 'hover:bg-gray-50');
         });
         
+        // Map Tab ID
         let btnId = 'tab-training';
         if(table === 'meeting_schedule') btnId = 'tab-meeting';
         else if(table === 'nursing_projects') btnId = 'tab-project';
         else if(table === 'nursing_units') btnId = 'tab-units';
+        else if(table === 'job_postings') btnId = 'tab-job';
+        else if(table === 'nursing_news') btnId = 'tab-news';
+        else if(table === 'line_users') btnId = 'tab-staff';
 
-        const activeBtn = document.getElementById(btnId);
-        activeBtn.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50');
-        activeBtn.classList.add('bg-rose-500', 'text-white', 'shadow-md');
-        
-        document.getElementById('current-table-title').innerHTML = TABLE_CONFIG[table].title;
+        const active = document.getElementById(btnId);
+        if(active) {
+            active.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50');
+            active.classList.add('bg-rose-500', 'text-white', 'shadow-md');
+        }
+        document.getElementById('current-table-title').innerText = TABLE_CONFIG[table].title;
         renderTableHeader();
         if(loadData) fetchData();
     }
@@ -208,172 +354,68 @@
 
     async function fetchData() {
         const secret = document.getElementById('adminSecret').value;
-        if(!secret) { Swal.fire('แจ้งเตือน', 'กรุณาใส่รหัส Admin ก่อนครับ', 'warning'); return; }
-        
+        if(!secret) return;
         localStorage.setItem("admin_secret", secret);
-        
         document.getElementById('loadingSpinner').classList.remove('hidden');
         document.getElementById('btnReload').disabled = true;
-        document.getElementById('btnReload').innerHTML = `...`;
 
         try {
-            // Anti-Cache: เพิ่ม timestamp เพื่อบังคับโหลดใหม่เสมอ
             const res = await axios.get(`${API_BASE_URL}/api/admin/${currentTable}?t=${new Date().getTime()}`, { headers: { 'secret': secret } });
-            
-            if(res.data.error) throw new Error(res.data.error);
-            
-            // Update Record Count
-            const count = res.data.length;
-            document.getElementById('record-count').innerText = `${count} รายการ`;
-            document.getElementById('record-count').classList.remove('bg-gray-200', 'text-gray-600');
-            document.getElementById('record-count').classList.add('bg-green-100', 'text-green-700');
-
             const tbody = document.getElementById('table-body');
-            if(count === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-10 text-center text-gray-400 flex flex-col items-center gap-2">ยังไม่มีข้อมูลในตารางนี้</td></tr>`;
-            } else {
-                tbody.innerHTML = res.data.map(row => {
-                    let cols = '';
-                    if(currentTable === 'nursing_units') {
-                        cols = `<td class="px-6 py-4 font-bold text-gray-800">${row.unit_name}</td>
-                                <td class="px-6 py-4">${row.floor||'-'}</td>
-                                <td class="px-6 py-4 text-blue-600 font-medium">${row.phone_number||'-'}</td>
-                                <td class="px-6 py-4 text-gray-500 text-sm max-w-xs truncate">${row.description||''}</td>`;
-                    } else {
-                        // Common Rendering
-                        let contact = `${row.responsible_unit||'-'}<br><span class="text-xs text-gray-500">${row.unit_phone||''}</span>`;
-                        if(row.contact_person) contact += `<br><span class="text-xs text-blue-500">คุณ${row.contact_person}</span>`;
-                        
-                        let linksHtml = '';
-                        if (row.link_register) linksHtml += `<a href="${row.link_register}" target="_blank" class="text-blue-600 hover:text-blue-800 block text-xs mb-1 flex items-center gap-1 font-semibold">📝 สมัคร</a>`;
-                        if (row.link_zoom) linksHtml += `<a href="${row.link_zoom}" target="_blank" class="text-green-600 hover:text-green-800 block text-xs flex items-center gap-1 font-semibold">📹 Zoom</a>`;
+            document.getElementById('record-count').innerText = `${res.data.length} รายการ`;
+            tbody.innerHTML = res.data.length === 0 ? `<tr><td colspan="10" class="p-10 text-center text-gray-400">ไม่มีข้อมูล</td></tr>` : res.data.map(row => renderRow(row)).join('');
+        } catch (e) { Swal.fire('Error', e.message, 'error'); } 
+        finally { document.getElementById('loadingSpinner').classList.add('hidden'); document.getElementById('btnReload').disabled = false; }
+    }
 
-                        if(currentTable === 'training_courses') {
-                            cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.course_name}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${row.date_start}</td>
-                                    <td class="px-6 py-4 text-sm">${contact}</td>
-                                    <td class="px-6 py-4">${linksHtml}</td>
-                                    <td class="px-6 py-4"><span class="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-1 rounded text-xs whitespace-nowrap">${row.process_status}</span></td>`;
-                        } else if(currentTable === 'meeting_schedule') {
-                            cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.title}</td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">${row.meeting_date}<br>${row.start_time}</td>
-                                    <td class="px-6 py-4 text-sm">${contact}</td>
-                                    <td class="px-6 py-4">${linksHtml}</td>
-                                    <td class="px-6 py-4"><span class="bg-gray-50 text-gray-700 border border-gray-200 px-2 py-1 rounded text-xs whitespace-nowrap">${row.process_status}</span></td>`;
-                        } else if(currentTable === 'nursing_projects') {
-                            cols = `<td class="px-6 py-4 font-semibold text-gray-700">${row.project_name}</td>
-                                    <td class="px-6 py-4 text-sm">${row.responsible_unit}</td>
-                                    <td class="px-6 py-4 text-sm">คุณ${row.contact_person||'-'}</td>
-                                    <td class="px-6 py-4">${linksHtml}</td>
-                                    <td class="px-6 py-4"><span class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded text-xs whitespace-nowrap">${row.process_status}</span></td>`;
-                        }
-                    }
-                    
-                    const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
-                    return `<tr class="bg-white border-b hover:bg-rose-50 transition duration-150">${cols}
-                            <td class="px-6 py-4 text-center whitespace-nowrap">
-                                <button type="button" onclick='openEditModal(${rowData})' class="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition mr-1 shadow-sm border border-blue-100" title="แก้ไข">✏️</button>
-                                <button type="button" onclick="deleteData(${row.id})" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition shadow-sm border border-red-100" title="ลบ">🗑️</button>
-                            </td></tr>`;
-                }).join('');
-            }
-        } catch (e) {
-            Swal.fire({ title: 'โหลดข้อมูลไม่สำเร็จ', text: e.message, icon: 'error', confirmButtonColor: '#e11d48' });
-        } finally {
-            document.getElementById('loadingSpinner').classList.add('hidden');
-            document.getElementById('btnReload').disabled = false;
-            document.getElementById('btnReload').innerHTML = `โหลดข้อมูล`;
+    function renderRow(row) {
+        let cols = '';
+        const rowData = JSON.stringify(row).replace(/"/g, '&quot;');
+        let visBadge = "";
+        if (row.visibility) visBadge = row.visibility === 'staff' ? '<span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs border border-red-200">🔒 Staff</span>' : '<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs border border-green-200">🌍 Public</span>';
+
+        if(currentTable === 'line_users') {
+            cols = `<td class="px-6 py-4 text-xs font-mono text-gray-500">${row.line_user_id.substring(0, 8)}...</td><td class="px-6 py-4 font-bold text-gray-800">${row.first_name||'-'} ${row.last_name||''}</td><td class="px-6 py-4">${row.role}</td>`;
+        } else {
+            let name = row.course_name || row.title || row.project_name || row.unit_name || row.position_name || row.topic;
+            let sub = row.date_start || row.meeting_date || row.responsible_unit || row.phone_number || row.date_close || row.news_date;
+            let status = row.process_status || row.status || '';
+            cols = `<td class="px-6 py-4 font-semibold">${name}</td><td>${sub}</td><td><span class="bg-gray-100 px-2 py-1 rounded text-xs">${status}</span></td><td>${visBadge}</td>`;
         }
+        return `<tr class="bg-white border-b hover:bg-rose-50">${cols}<td class="px-6 py-4 text-center"><button onclick='openEditModal(${rowData})' class="text-blue-500 mr-2">✏️</button><button onclick="deleteData('${row.id||row.line_user_id}')" class="text-red-500">🗑️</button></td></tr>`;
     }
 
-    function openAddModal() {
-        editingId = null;
-        document.getElementById('modalTitle').innerText = "เพิ่มข้อมูลใหม่";
-        renderForm();
-        document.getElementById('addModal').classList.remove('hidden');
-    }
-
-    function openEditModal(row) {
-        editingId = row.id;
-        document.getElementById('modalTitle').innerText = "แก้ไขข้อมูล";
-        renderForm(row);
-        document.getElementById('addModal').classList.remove('hidden');
-    }
-
+    function openAddModal() { editingId = null; document.getElementById('modalTitle').innerText = "เพิ่มข้อมูลใหม่"; renderForm(); document.getElementById('addModal').classList.remove('hidden'); }
+    function openEditModal(row) { editingId = row.id || row.line_user_id; document.getElementById('modalTitle').innerText = "แก้ไขข้อมูล"; renderForm(row); document.getElementById('addModal').classList.remove('hidden'); }
+    function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+    
     function renderForm(data = {}) {
         const form = document.getElementById('addForm');
         form.innerHTML = TABLE_CONFIG[currentTable].fields.map(f => {
+            if(f.type === 'header') return `<div class="form-section-title">${f.label}</div>`;
             let val = data[f.name] || '';
-            if(f.name === 'fiscal_year' && !val) val = 2568;
-            
             let input = '';
-            if(f.type === 'select') {
-                input = `<select name="${f.name}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">
-                            ${f.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
-                         </select>`;
-            } else if (f.type === 'textarea') {
-                input = `<textarea name="${f.name}" placeholder="${f.label}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none h-24 resize-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">${val}</textarea>`;
-            } else {
-                let type = f.type;
-                if(f.type === 'date' && val) val = val.split('T')[0]; // Fix date format
-                input = `<input type="${type}" name="${f.name}" value="${val}" placeholder="${f.label}" class="w-full p-2.5 border border-gray-300 rounded-lg outline-none bg-gray-50 focus:bg-white focus:ring-2 focus:ring-rose-200 transition">`;
-            }
-            let colClass = f.col ? f.col : 'span-1';
-            return `<div class="col-${colClass} ${f.type === 'textarea' ? 'md:col-span-2' : ''}">
-                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">${f.label}</label>
-                        ${input}
-                    </div>`;
+            if(f.type === 'select') input = `<select name="${f.name}" class="w-full p-2.5 border rounded">${f.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select>`;
+            else if(f.type === 'textarea') input = `<textarea name="${f.name}" class="w-full p-2.5 border rounded h-24">${val}</textarea>`;
+            else { if(f.type==='date' && val) val = val.split('T')[0]; input = `<input type="${f.type}" name="${f.name}" value="${val}" class="w-full p-2.5 border rounded">`; }
+            return `<div class="${f.col||'col-span-1'}"><label class="text-xs font-bold text-gray-500">${f.label}</label>${input}</div>`;
         }).join('');
     }
 
-    function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
-
     async function submitData() {
-        const btn = document.getElementById('btnSave');
-        const originalText = btn.innerHTML;
-        btn.disabled = true; btn.innerText = "กำลังบันทึก...";
-
         const data = Object.fromEntries(new FormData(document.getElementById('addForm')).entries());
-        const secret = document.getElementById('adminSecret').value;
-        
         try {
-            let res;
-            if (editingId) {
-                res = await axios.put(`${API_BASE_URL}/api/admin/${currentTable}/${editingId}`, data, { headers: { 'secret': secret } });
-            } else {
-                res = await axios.post(`${API_BASE_URL}/api/admin/${currentTable}`, data, { headers: { 'secret': secret } });
-            }
-            
-            if(res.data.error) throw new Error(res.data.error);
-            
-            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-            Toast.fire({ icon: 'success', title: editingId ? 'แก้ไขข้อมูลสำเร็จ' : 'เพิ่มข้อมูลสำเร็จ' });
-            
-            closeAddModal();
-            fetchData();
-        } catch (e) { 
-            Swal.fire({ title: 'บันทึกไม่สำเร็จ', text: e.message, icon: 'error', confirmButtonColor: '#e11d48' });
-        } finally {
-            btn.disabled = false; btn.innerHTML = originalText;
-        }
+            const url = editingId ? `${API_BASE_URL}/api/admin/${currentTable}/${editingId}` : `${API_BASE_URL}/api/admin/${currentTable}`;
+            const method = editingId ? 'put' : 'post';
+            await axios[method](url, data, { headers: { 'secret': document.getElementById('adminSecret').value } });
+            Swal.fire('สำเร็จ', 'บันทึกข้อมูลแล้ว', 'success'); closeAddModal(); fetchData();
+        } catch (e) { Swal.fire('Error', e.message, 'error'); }
     }
 
     async function deleteData(id) {
-        if((await Swal.fire({ 
-            title: 'ยืนยันการลบ?', text: "ข้อมูลนี้จะหายไปทันทีและกู้คืนไม่ได้", icon: 'warning', 
-            showCancelButton: true, confirmButtonColor: '#e11d48', cancelButtonColor: '#64748b',
-            confirmButtonText: 'ลบเลย', cancelButtonText: 'ยกเลิก' 
-        })).isConfirmed) {
-            try {
-                await axios.delete(`${API_BASE_URL}/api/admin/${currentTable}/${id}`, { headers: { 'secret': document.getElementById('adminSecret').value } });
-                
-                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-                Toast.fire({ icon: 'success', title: 'ลบข้อมูลเรียบร้อย' });
-                
-                fetchData();
-            } catch(e) {
-                Swal.fire('Error', e.message, 'error');
-            }
+        if((await Swal.fire({ title: 'ยืนยันลบ?', icon: 'warning', showCancelButton: true })).isConfirmed) {
+            await axios.delete(`${API_BASE_URL}/api/admin/${currentTable}/${id}`, { headers: { 'secret': document.getElementById('adminSecret').value } });
+            fetchData();
         }
     }
 </script>
