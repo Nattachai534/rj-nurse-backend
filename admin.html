@@ -14,26 +14,14 @@
         textarea::-webkit-scrollbar-track { background: #f1f1f1; }
         textarea::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(2px); }
-        .form-section-title {
-            grid-column: 1 / -1;
-            font-weight: 700;
-            color: #be123c;
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-            border-bottom: 2px solid #fecdd3;
-            padding-bottom: 0.25rem;
-            display: flex; align-items: center; gap: 0.5rem;
-        }
-        .form-section-title:first-child { margin-top: 0; }
+        .form-section-title { grid-column: 1 / -1; font-weight: 700; color: #be123c; margin-top: 1.5rem; margin-bottom: 0.5rem; border-bottom: 2px solid #fecdd3; padding-bottom: 0.25rem; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
     <nav class="bg-gradient-to-r from-rose-700 to-pink-600 text-white p-4 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-            <h1 class="text-xl font-bold flex items-center gap-2">
-                🏥 Admin V16.0 (Verified)
-            </h1>
+            <h1 class="text-xl font-bold flex items-center gap-2">🏥 Admin V17.0 (Full Match)</h1>
             <div class="flex gap-2 items-center bg-white/10 p-1.5 rounded-lg border border-white/20">
                 <input type="password" id="adminSecret" placeholder="รหัส Admin..." class="px-3 py-1.5 text-gray-800 rounded text-sm w-32 border-none shadow-inner bg-white focus:ring-2 focus:ring-rose-300">
                 <button type="button" id="btnReload" onclick="fetchData()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded text-sm transition font-bold shadow-md">โหลดข้อมูล</button>
@@ -57,48 +45,31 @@
                 <h2 id="current-table-title" class="text-2xl font-bold text-gray-800">จัดการข้อมูล</h2>
                 <span id="record-count" class="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold shadow-sm">...</span>
             </div>
-            <button type="button" onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition transform active:scale-95 w-full sm:w-auto justify-center font-medium">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> 
-                เพิ่มข้อมูลใหม่
-            </button>
+            <button type="button" onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-lg flex items-center gap-2 transition transform active:scale-95 w-full sm:w-auto justify-center font-medium">เพิ่มข้อมูลใหม่</button>
         </div>
 
         <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 relative min-h-[300px]">
-            <div id="loadingSpinner" class="hidden loading-overlay">
-                <div class="flex flex-col items-center">
-                    <div class="animate-spin w-12 h-12 border-4 border-rose-500 rounded-full border-t-transparent mb-3"></div>
-                    <span class="text-rose-600 font-bold animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</span>
-                </div>
-            </div>
+            <div id="loadingSpinner" class="hidden loading-overlay"><div class="animate-spin w-12 h-12 border-4 border-rose-500 rounded-full border-t-transparent mb-3"></div></div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-600">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b"><tr id="table-header"></tr></thead>
-                    <tbody id="table-body" class="divide-y divide-gray-100">
-                        <tr><td colspan="10" class="p-10 text-center text-gray-400">กรุณาใส่รหัส Admin และกดโหลดข้อมูล...</td></tr>
-                    </tbody>
+                    <tbody id="table-body" class="divide-y divide-gray-100"><tr><td colspan="10" class="p-10 text-center text-gray-400">กรุณาใส่รหัส Admin และกดโหลดข้อมูล...</td></tr></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Modal Form (Large) -->
+    <!-- Modal -->
     <div id="addModal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4 transition-opacity">
         <div class="bg-white rounded-2xl p-6 w-full max-w-5xl shadow-2xl transform transition-all scale-100 max-h-[95vh] overflow-y-auto border border-gray-100 flex flex-col">
             <div class="flex justify-between items-center mb-5 border-b pb-3 sticky top-0 bg-white z-10">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="bg-rose-100 text-rose-600 p-1.5 rounded-lg">📝</span> 
-                    <span id="modalTitle">เพิ่มข้อมูล</span>
-                </h3>
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2"><span class="bg-rose-100 text-rose-600 p-1.5 rounded-lg">📝</span> <span id="modalTitle">เพิ่มข้อมูล</span></h3>
                 <button type="button" onclick="closeAddModal()" class="text-gray-400 hover:text-red-500 text-3xl font-bold leading-none">&times;</button>
             </div>
-            
             <form id="addForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4" onsubmit="event.preventDefault();"></form>
-            
             <div class="mt-auto border-t pt-4 flex justify-end gap-3 sticky bottom-0 bg-white z-10">
                 <button type="button" onclick="closeAddModal()" class="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition">ยกเลิก</button>
-                <button type="button" onclick="submitData()" id="btnSave" class="px-6 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 shadow-md font-bold transition flex items-center gap-2">
-                    บันทึกข้อมูล
-                </button>
+                <button type="button" onclick="submitData()" id="btnSave" class="px-6 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 shadow-md font-bold transition flex items-center gap-2">บันทึกข้อมูล</button>
             </div>
         </div>
     </div>
@@ -116,7 +87,7 @@
 
     const visibilityField = {name: "visibility", label: "🔒 การเข้าถึง", type: "select", options: ["public", "staff"]};
 
-    // --- TABLE CONFIGURATION: ตรงกับ Database V16.0 ครบทุกช่อง ---
+    // --- TABLE CONFIGURATION V17.0 (100% Match with SQL) ---
     const TABLE_CONFIG = {
         "training_courses": {
             title: "จัดการหลักสูตรอบรม",
@@ -155,12 +126,13 @@
                 {name: "link_register", label: "ลิงก์สมัคร (Google Form)", type: "text"},
                 {name: "link_doc_application", label: "ลิงก์เอกสารประกอบ", type: "text"},
                 {name: "link_poster", label: "ลิงก์โปสเตอร์", type: "text"},
-                {name: "link_announce_written", label: "ลิงก์ผลข้อเขียน", type: "text"},
-                {name: "link_announce_interview", label: "ลิงก์ผลสัมภาษณ์", type: "text"},
-                {name: "link_announce_final", label: "ลิงก์ผล Final", type: "text"},
+                {name: "link_announce_written", label: "ประกาศข้อเขียน", type: "text"},
+                {name: "link_announce_interview", label: "ประกาศสัมภาษณ์", type: "text"},
+                {name: "link_announce_final", label: "ประกาศผล Final", type: "text"},
 
                 {label: "⚙️ สถานะ", type: "header"},
-                {name: "process_status", label: "ขั้นตอนปัจจุบัน", type: "select", col: "md:col-span-2", options: ["รอเปิดรับสมัคร", "เปิดรับสมัคร", "ปิดรับสมัคร", "สอบคัดเลือก", "สอบสัมภาษณ์", "ประกาศรายชื่อ", "กำลังดำเนินการ", "เสร็จสิ้น"]},
+                {name: "process_status", label: "ขั้นตอนปัจจุบัน", type: "select", col: "md:col-span-2",
+                 options: ["รอเปิดรับสมัคร", "เปิดรับสมัคร", "ปิดรับสมัคร", "สอบคัดเลือก", "สอบสัมภาษณ์", "ประกาศรายชื่อ", "กำลังดำเนินการ", "เสร็จสิ้น"]},
                 {name: "status", label: "สถานะเปิด/ปิด", type: "select", options: ["open", "full", "closed"]}
             ]
         },
@@ -179,7 +151,7 @@
                 {name: "meeting_date", label: "วันที่", type: "date"},
                 {name: "start_time", label: "เริ่ม", type: "time"},
                 {name: "end_time", label: "เลิก", type: "time"},
-                {name: "room", label: "ห้องประชุม", type: "text", col: "md:col-span-2"},
+                {name: "room", label: "ห้อง", type: "text", col: "md:col-span-2"},
 
                 {label: "💻 Zoom Meeting", type: "header"},
                 {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
@@ -216,11 +188,14 @@
                 {name: "start_date", label: "วันเริ่ม", type: "date"},
                 {name: "end_date", label: "วันสิ้นสุด", type: "date"},
 
-                {label: "📍 สถานที่ & Zoom", type: "header"},
-                {name: "location", label: "สถานที่จัด", type: "text", col: "md:col-span-2"},
+                {label: "💻 Zoom Meeting", type: "header"},
                 {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
                 {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
                 {name: "zoom_passcode", label: "Passcode", type: "text"},
+
+                {label: "🔗 ลิงก์อื่นๆ", type: "header"},
+                {name: "link_register", label: "ลิงก์ข้อมูล/สมัคร", type: "text"},
+                {name: "link_poster", label: "ลิงก์โปสเตอร์", type: "text"},
 
                 {label: "📞 ผู้รับผิดชอบ", type: "header"},
                 {name: "responsible_unit", label: "หน่วยงาน", type: "text"},
@@ -229,13 +204,8 @@
                 {name: "contact_person", label: "ผู้ติดต่อ", type: "text"},
                 {name: "contact_phone", label: "เบอร์มือถือ", type: "text"},
 
-                {label: "🔗 ลิงก์อื่นๆ", type: "header"},
-                {name: "link_register", label: "ลิงก์ข้อมูล/สมัคร", type: "text"},
-                {name: "link_poster", label: "ลิงก์โปสเตอร์", type: "text"},
-
                 {label: "⚙️ สถานะ", type: "header"},
-                {name: "process_status", label: "ขั้นตอน", type: "select", options: ["วางแผน", "อนุมัติโครงการ", "กำลังดำเนินงาน", "สรุปผล", "เสร็จสิ้น", "ยกเลิก"]},
-                {name: "status", label: "สถานะเปิด/ปิด", type: "select", options: ["planned", "ongoing", "completed", "cancelled"]}
+                {name: "process_status", label: "สถานะ", type: "select", col: "md:col-span-2", options: ["วางแผน", "อนุมัติโครงการ", "กำลังดำเนินงาน", "สรุปผล", "เสร็จสิ้น", "ยกเลิก"]}
             ]
         },
         "nursing_units": {
@@ -243,7 +213,7 @@
             headers: ["ชื่อหน่วยงาน", "เบอร์โทร", "การเข้าถึง"],
             fields: [
                 {label: "📌 ข้อมูลพื้นฐาน", type: "header"},
-                {name: "unit_name", label: "ชื่อหน่วยงาน/Ward", type: "text", col: "md:col-span-2"},
+                {name: "unit_name", label: "ชื่อหน่วยงาน", type: "text", col: "md:col-span-2"},
                 {name: "floor", label: "ชั้น/อาคาร", type: "text"},
                 {name: "phone_number", label: "เบอร์โทรศัพท์", type: "text"},
                 {name: "description", label: "รายละเอียดเพิ่มเติม", type: "textarea", col: "md:col-span-3"},
@@ -256,22 +226,19 @@
             headers: ["ตำแหน่ง", "ปิดรับ", "สถานะ", "การเข้าถึง"],
             fields: [
                 {label: "📌 ข้อมูลตำแหน่ง", type: "header"},
-                {name: "position_name", label: "ตำแหน่งที่เปิดรับ", type: "text", col: "md:col-span-2"},
+                {name: "position_name", label: "ตำแหน่ง", type: "text", col: "md:col-span-2"},
                 {name: "quantity", label: "จำนวนรับ (อัตรา)", type: "number"},
                 {name: "description", label: "คุณสมบัติ/รายละเอียด", type: "textarea", col: "md:col-span-3"},
                 visibilityField,
-
                 {label: "📅 ระยะเวลา", type: "header"},
-                {name: "date_open", label: "วันที่เปิดรับ", type: "date"},
-                {name: "date_close", label: "วันที่ปิดรับ", type: "date"},
-
+                {name: "date_open", label: "วันเปิดรับ", type: "date"},
+                {name: "date_close", label: "วันปิดรับ", type: "date"},
                 {label: "📍 การติดต่อ", type: "header"},
-                {name: "location_apply", label: "สถานที่ยื่นใบสมัคร", type: "text", col: "md:col-span-2"},
-                {name: "contact_info", label: "เบอร์ติดต่อสอบถาม", type: "text"},
+                {name: "location_apply", label: "สถานที่ยื่น", type: "text", col: "md:col-span-2"},
+                {name: "contact_info", label: "ติดต่อสอบถาม", type: "text"},
                 {name: "link_apply", label: "ลิงก์สมัครออนไลน์", type: "text"},
-                {name: "link_poster", label: "ลิงก์ประกาศ", type: "text"},
                 {name: "link_website", label: "เว็บไซต์ประกาศ", type: "text"},
-
+                {name: "link_poster", label: "ลิงก์ประกาศ", type: "text"},
                 {label: "⚙️ สถานะ", type: "header"},
                 {name: "status", label: "สถานะเปิดรับ", type: "select", options: ["open", "closed"]},
                 {name: "process_status", label: "ขั้นตอนปัจจุบัน", type: "select", options: ["เปิดรับสมัคร", "ประกาศรายชื่อผู้มีสิทธิ์สอบ", "สอบข้อเขียน/ปฏิบัติ", "สอบสัมภาษณ์", "ประกาศผล", "ปิดรับสมัคร"]}
@@ -290,11 +257,8 @@
                 {name: "news_date", label: "วันที่", type: "date"},
                 {name: "news_time", label: "เวลา", type: "time"},
 
-                {label: "📍 แหล่งที่มา & Zoom", type: "header"},
-                {name: "source_unit", label: "จากหน่วยงาน", type: "text"},
-                {name: "location", label: "สถานที่ (ถ้ามี)", type: "text"},
-                {name: "contact_info", label: "ติดต่อสอบถาม", type: "text"},
-                {name: "link_zoom", label: "ลิงก์ Zoom (ถ้ามี)", type: "text"},
+                {label: "💻 Zoom (ถ้ามี)", type: "header"},
+                {name: "link_zoom", label: "ลิงก์ Zoom", type: "text"},
                 {name: "zoom_meeting_id", label: "Meeting ID", type: "text"},
                 {name: "zoom_passcode", label: "Passcode", type: "text"},
 
@@ -319,7 +283,7 @@
         }
     };
 
-    // ... (ฟังก์ชัน switchTab, fetchData, renderRow, openAddModal, submitData, deleteData เหมือนเดิม) ...
+    // (ส่วนฟังก์ชัน JavaScript เหมือนเดิมทั้งหมด)
     function switchTab(table, loadData = true) {
         currentTable = table;
         localStorage.setItem("last_tab", table);
@@ -327,21 +291,9 @@
             b.classList.remove('bg-rose-500', 'text-white', 'shadow-md');
             b.classList.add('bg-white', 'text-gray-600', 'hover:bg-gray-50');
         });
-        
-        // Map Tab ID
-        let btnId = 'tab-training';
-        if(table === 'meeting_schedule') btnId = 'tab-meeting';
-        else if(table === 'nursing_projects') btnId = 'tab-project';
-        else if(table === 'nursing_units') btnId = 'tab-units';
-        else if(table === 'job_postings') btnId = 'tab-job';
-        else if(table === 'nursing_news') btnId = 'tab-news';
-        else if(table === 'line_users') btnId = 'tab-staff';
-
-        const active = document.getElementById(btnId);
-        if(active) {
-            active.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50');
-            active.classList.add('bg-rose-500', 'text-white', 'shadow-md');
-        }
+        const mapId = {'training_courses':'tab-training', 'meeting_schedule':'tab-meeting', 'nursing_projects':'tab-project', 'nursing_units':'tab-units', 'job_postings':'tab-job', 'nursing_news':'tab-news', 'line_users':'tab-staff'};
+        const active = document.getElementById(mapId[table]);
+        if(active) { active.classList.remove('bg-white', 'text-gray-600', 'hover:bg-gray-50'); active.classList.add('bg-rose-500', 'text-white', 'shadow-md'); }
         document.getElementById('current-table-title').innerText = TABLE_CONFIG[table].title;
         renderTableHeader();
         if(loadData) fetchData();
@@ -358,7 +310,6 @@
         localStorage.setItem("admin_secret", secret);
         document.getElementById('loadingSpinner').classList.remove('hidden');
         document.getElementById('btnReload').disabled = true;
-
         try {
             const res = await axios.get(`${API_BASE_URL}/api/admin/${currentTable}?t=${new Date().getTime()}`, { headers: { 'secret': secret } });
             const tbody = document.getElementById('table-body');
