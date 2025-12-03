@@ -177,7 +177,7 @@ def format_db_row(row, title_field):
         
     return "\n".join(lines)
 
-# --- SMART SEARCH LOGIC V20.0 ---
+# --- SMART SEARCH LOGIC V21.0 (Fixed) ---
 def query_mysql(user_query, role='guest'):
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
@@ -188,13 +188,19 @@ def query_mysql(user_query, role='guest'):
         q = user_query.lower()
         access_filter = " AND visibility = 'public'" if role == 'guest' else ""
         
-        # Keyword Detection
-        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร', 'ลิงก์', 'สอบ', 'ผล'])
+        # Keyword Detection (เพิ่มคำทั่วไปให้ครบ)
+        fetch_training = any(k in q for k in ['อบรม', 'ตาราง', 'หลักสูตร', 'เรียน', 'cneu', '2568', '68', 'สมัคร', 'ลิงก์', 'สอบ', 'ผล', 'รายชื่อ', 'สิทธิ์', 'ประกาศ'])
         fetch_meeting = any(k in q for k in ['ประชุม', 'meeting', 'นัดหมาย', 'วาระ', 'ลิงก์'])
         fetch_project = any(k in q for k in ['โครงการ', 'project', 'กิจกรรม'])
         fetch_unit = any(k in q for k in ['หน่วยงาน', 'ตึก', 'ชั้น', 'ward', 'ติดต่อ', 'เบอร์', 'โทร', 'แผนก'])
         fetch_job = any(k in q for k in ['สมัครงาน', 'รับสมัคร', 'ตำแหน่ง', 'ว่าง', 'งาน'])
-        fetch_news = any(k in q for k in ['ข่าว', 'ประกาศ', 'ประชาสัมพันธ์', 'แจ้ง'])
+        fetch_news = any(k in q for k in ['ข่าว', 'ประกาศ', 'ประชาสัมพันธ์', 'แจ้ง', 'รายชื่อ', 'ผล', 'สิทธิ์'])
+
+        # ✅ Default Search: ถ้าไม่เข้าเงื่อนไขไหนเลย (เช่นพิมพ์ว่า "ส่องกล้อง" เฉยๆ) ให้ค้นหาในตารางหลักทั้งหมด
+        if not any([fetch_training, fetch_meeting, fetch_project, fetch_unit, fetch_job, fetch_news]):
+            fetch_training = True
+            fetch_news = True
+            fetch_project = True
 
         # Helper: Smart Fetch
         def smart_fetch(table, title_col, where_clause, order_clause, limit=5):
@@ -203,12 +209,13 @@ def query_mysql(user_query, role='guest'):
             cursor.execute(sql, (f"%{user_query}%", f"%{user_query}%"))
             rows = cursor.fetchall()
             
-            # 2. Fallback (ถ้าไม่เจอ)
-            if not rows:
-                sql = f"SELECT * FROM {table} WHERE 1=1 {access_filter} {order_clause} LIMIT {limit}"
-                cursor.execute(sql)
-                rows = cursor.fetchall()
-                if rows: results_text.append(f"\n(ไม่พบข้อมูลที่ตรงเป๊ะ แต่พบข้อมูลล่าสุดจาก {table} ดังนี้:)")
+            # 2. Fallback (ถ้าไม่เจอ) -> ยกเลิกการดึงทั้งหมดมาแสดง เพราะอาจจะเยอะเกินไป
+            # เปลี่ยนเป็น: ถ้าไม่เจอ ให้ลองค้นหาแบบกว้างขึ้น หรือแจ้งว่าไม่พบในส่วนนี้
+            if not rows and "2568" in user_query: # กรณีพิเศษสำหรับปี
+                 sql = f"SELECT * FROM {table} WHERE 1=1 {access_filter} {order_clause} LIMIT {limit}"
+                 cursor.execute(sql)
+                 rows = cursor.fetchall()
+                 if rows: results_text.append(f"\n(ไม่พบข้อมูลที่ตรงเป๊ะ แต่พบข้อมูลล่าสุดจาก {table} ดังนี้:)")
             
             for row in rows:
                 # ใช้ format_db_row เพื่อดึงทุกคอลัมน์
@@ -349,7 +356,7 @@ def admin_delete_data(table_name: str, record_id: str, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V20.0 Running"}
+def root(): return {"status": "RJ Nurse Backend V21.0 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
