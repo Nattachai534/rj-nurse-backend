@@ -15,7 +15,6 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = FastAPI()
 
-# --- CORS Setup ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -24,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Configuration ---
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
@@ -47,7 +45,6 @@ MYSQL_CONFIG = {
     'ssl_disabled': False
 }
 
-# --- Initialization ---
 if GEMINI_API_KEY: genai.configure(api_key=GEMINI_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
 index = pc.Index("nursing-kb") if pc else None
@@ -58,11 +55,9 @@ if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
     line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
     handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ✅ ย้าย Class มาไว้ตรงนี้ (ก่อนถูกเรียกใช้)
 class ChatRequest(BaseModel): 
     message: str
 
-# --- Helper Functions ---
 def get_db_connection(): return mysql.connector.connect(**MYSQL_CONFIG)
 
 def get_embedding(text):
@@ -98,15 +93,15 @@ def register_staff_profile(line_user_id, first_name, last_name, dept):
         return False
 
 def format_zoom(link, mid, pwd):
-    if not link and not mid: return ""
-    info = ""
-    if link: info += f"[Link Zoom: {link}] "
-    if mid: info += f"(Meeting ID: {mid}"
-    if pwd: info += f" Passcode: {pwd})"
-    if mid: info += ")"
-    return info
+    info_parts = []
+    if link: info_parts.append(f"Zoom Link: {link}")
+    if mid: info_parts.append(f"Meeting ID: {mid}")
+    if pwd: info_parts.append(f"Passcode: {pwd}")
+    
+    if not info_parts: return ""
+    return f"[{' | '.join(info_parts)}]"
 
-# --- SEARCH LOGIC ---
+# --- SEARCH LOGIC V17.0 ---
 def query_mysql(user_query, role='guest'):
     if not all([DB_HOST, DB_USER, DB_NAME]): return ""
     results_text = []
@@ -124,7 +119,7 @@ def query_mysql(user_query, role='guest'):
         fetch_job = any(k in q for k in ['สมัครงาน', 'รับสมัคร', 'ตำแหน่ง', 'ว่าง', 'งาน'])
         fetch_news = any(k in q for k in ['ข่าว', 'ประกาศ', 'ประชาสัมพันธ์', 'แจ้ง'])
 
-        # 1. อบรม
+        # 1. อบรม (ดึง Zoom ID/Passcode)
         if fetch_training:
             try:
                 sql = f"""SELECT course_name, description, date_start, link_register, link_zoom, zoom_meeting_id, zoom_passcode, link_poster, process_status, visibility 
@@ -134,9 +129,9 @@ def query_mysql(user_query, role='guest'):
                     zoom = format_zoom(t['link_zoom'], t['zoom_meeting_id'], t['zoom_passcode'])
                     lock = "🔒" if t['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} อบรม: {t['course_name']} ({t['date_start']}) {t['process_status']} {zoom}")
-            except Exception as e: print(f"Training Query Error: {e}")
+            except Exception: pass
 
-        # 2. ประชุม
+        # 2. ประชุม (ดึง Zoom ID/Passcode)
         if fetch_meeting:
             try:
                 sql = f"""SELECT title, meeting_date, start_time, room, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
@@ -146,9 +141,9 @@ def query_mysql(user_query, role='guest'):
                     zoom = format_zoom(m['link_zoom'], m['zoom_meeting_id'], m['zoom_passcode'])
                     lock = "🔒" if m['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} ประชุม: {m['title']} ({m['meeting_date']} {m['start_time']}) @{m['room']} {zoom}")
-            except Exception as e: print(f"Meeting Query Error: {e}")
+            except Exception: pass
 
-        # 3. โครงการ
+        # 3. โครงการ (ดึง Zoom ID/Passcode)
         if fetch_project:
             try:
                 sql = f"""SELECT project_name, process_status, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
@@ -158,7 +153,7 @@ def query_mysql(user_query, role='guest'):
                     zoom = format_zoom(p['link_zoom'], p['zoom_meeting_id'], p['zoom_passcode'])
                     lock = "🔒" if p['visibility'] == 'staff' else "🌍"
                     results_text.append(f"- {lock} โครงการ: {p['project_name']} [{p['process_status']}] {zoom}")
-            except Exception as e: print(f"Project Query Error: {e}")
+            except Exception: pass
 
         # 4. หน่วยงาน
         if fetch_unit:
@@ -166,7 +161,7 @@ def query_mysql(user_query, role='guest'):
                 sql = f"SELECT unit_name, floor, phone_number FROM nursing_units WHERE (unit_name LIKE %s) {access_filter} LIMIT 5"
                 cursor.execute(sql, (f"%{user_query}%",))
                 for u in cursor.fetchall(): results_text.append(f"- {u['unit_name']} ({u['floor']}) โทร {u['phone_number']}")
-            except Exception as e: print(f"Unit Query Error: {e}")
+            except Exception: pass
 
         # 5. สมัครงาน
         if fetch_job:
@@ -174,15 +169,21 @@ def query_mysql(user_query, role='guest'):
                 sql = f"SELECT position_name, date_close FROM job_postings WHERE (position_name LIKE %s) {access_filter} AND status='open' LIMIT 5"
                 cursor.execute(sql, (f"%{user_query}%",))
                 for j in cursor.fetchall(): results_text.append(f"- งาน: {j['position_name']} (ปิด: {j['date_close']})")
-            except Exception as e: print(f"Job Query Error: {e}")
+            except Exception: pass
 
-        # 6. ข่าวสาร
+        # 6. ข่าวสาร (ดึง Zoom ID/Passcode)
         if fetch_news:
             try:
-                sql = f"SELECT topic, news_date, link_website FROM nursing_news WHERE (topic LIKE %s) {access_filter} AND status='active' LIMIT 5"
+                # เช็คว่าตารางมี column zoom ไหม (V16 เพิ่มแล้ว)
+                sql = f"""SELECT topic, news_date, link_website, link_zoom, zoom_meeting_id, zoom_passcode, visibility 
+                          FROM nursing_news WHERE (topic LIKE %s) {access_filter} AND status='active' LIMIT 5"""
                 cursor.execute(sql, (f"%{user_query}%",))
-                for n in cursor.fetchall(): results_text.append(f"- ข่าว: {n['topic']} ({n['news_date']}) [อ่าน: {n['link_website']}]")
-            except Exception as e: print(f"News Query Error: {e}")
+                for n in cursor.fetchall(): 
+                    zoom = format_zoom(n.get('link_zoom'), n.get('zoom_meeting_id'), n.get('zoom_passcode'))
+                    lock = "🔒" if n['visibility'] == 'staff' else "🌍"
+                    results_text.append(f"- {lock} ข่าว: {n['topic']} ({n['news_date']}) {zoom}")
+            except Exception as e: 
+                print(f"News Query Error: {e}") # เผื่อตารางเก่ายังไม่อัปเดต
 
         return "\n".join(results_text) if results_text else ""
     except Exception as e: 
@@ -210,7 +211,18 @@ def generate_bot_response(user_query, role='guest', user_name=None):
     
     role_txt = f"เจ้าหน้าที่ ({user_name})" if role == 'staff' else "บุคคลทั่วไป"
     context = f"สถานะผู้ถาม: {role_txt}\nเอกสาร:\n{pinecone_data}\n\nฐานข้อมูล:\n{mysql_data}"
-    prompt = f"ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: {context}\nคำถาม: {user_query}\n(ปี 2568 = 2025)\nถ้ามี Zoom Meeting ID และ Passcode ต้องระบุด้วยเสมอ"
+    
+    prompt = f"""
+    คุณคือ Bot RJ Nurse ตอบคำถามพยาบาลโดยใช้ข้อมูลนี้: 
+    {context}
+    
+    คำถาม: {user_query}
+    
+    ข้อควรระวัง:
+    - ปี 2568 = 2025
+    - ถ้ามีข้อมูล Zoom (Link, Meeting ID, Passcode) ให้แสดงให้ครบถ้วนเสมอ
+    - ถ้าไม่พบข้อมูลใน Context ให้ตอบว่า "ไม่พบข้อมูลในระบบฐานข้อมูลขณะนี้ค่ะ"
+    """
     
     try:
         return genai.GenerativeModel('models/gemini-flash-latest').generate_content(prompt).text
@@ -321,7 +333,7 @@ def admin_delete_data(table_name: str, record_id: str, secret: str = Header(None
     except Exception as e: return {"error": str(e)}
 
 @app.get("/")
-def root(): return {"status": "RJ Nurse Backend V16.2 Running"}
+def root(): return {"status": "RJ Nurse Backend V17.0 Running"}
 
 @app.post("/chat")
 def chat(r: ChatRequest): return {"reply": generate_bot_response(r.message)}
